@@ -129,7 +129,7 @@ export function LeaderboardTable() {
   const [uniqueTokenCounts, setUniqueTokenCounts] = useState<{ [key: string]: number }>({});
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const tradersPerPage = 15;
+  const tradersPerPage = 20;
 
   // Use ROI (return on investment) as our default sort key
   const [sortConfig, setSortConfig] = useState<SortConfig>({
@@ -310,12 +310,10 @@ export function LeaderboardTable() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full overflow-x-auto overflow-y-auto bg-[#11121B] relative scrollbar-custom">
-          <Table
-            className="table-fixed min-w-[1000px] sm:min-w-[1200px] md:min-w-[1500px] text-xs sm:text-sm md:text-base"
-          >
-            <TableHeader className="bg-[#25223D] z-10 h-8 sm:h-10 md:h-12">
+      <div className="flex-1 overflow-hidden relative">
+        <div className="absolute inset-0 overflow-x-auto overflow-y-auto scrollbar-custom [&:not(:hover)::-webkit-scrollbar-thumb]:opacity-0 [&:not(:hover)]:scrollbar-thumb-transparent">
+          <Table className="table-fixed w-full min-w-[1000px] sm:min-w-[1200px] md:min-w-[1500px] text-xs sm:text-sm md:text-base">
+            <TableHeader className="bg-[#25223D] sticky top-0 z-10 h-8 sm:h-10 md:h-12">
               <TableRow className="border-b border-[#23242C]">
                 {/* Rank */}
                 <TableHead className="w-[40px] sm:w-[60px] text-center whitespace-nowrap px-2 text-white">
@@ -592,12 +590,14 @@ export function LeaderboardTable() {
           </Table>
         </div>
       </div>
-      <div className="flex-shrink-0 flex justify-between items-center py-2 sm:py-3 md:py-4 px-2 sm:px-3 md:px-4 border-t border-[#464558]">
+      
+      {/* Pagination - Fixed at bottom */}
+      <div className="flex-shrink-0 flex justify-between items-center py-1 px-2 sm:px-3 md:px-4 border-t border-[#464558] bg-[#11121B]">
         <Button
           onClick={prevPage}
           disabled={currentPage === 1}
           variant="outline"
-          className="bg-[#25223D] text-white border-[#464558] hover:bg-[#464558] h-8 sm:h-9 md:h-10 px-2 sm:px-3 md:px-4 text-xs sm:text-sm"
+          className="bg-[#25223D] text-white border-[#464558] hover:bg-[#464558] h-7 sm:h-8 md:h-9 px-2 sm:px-3 md:px-4 text-xs sm:text-sm"
         >
           <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
           Previous
@@ -609,7 +609,7 @@ export function LeaderboardTable() {
           onClick={nextPage}
           disabled={currentPage === totalPages}
           variant="outline"
-          className="bg-[#25223D] text-white border-[#464558] hover:bg-[#464558] h-8 sm:h-9 md:h-10 px-2 sm:px-3 md:px-4 text-xs sm:text-sm"
+          className="bg-[#25223D] text-white border-[#464558] hover:bg-[#464558] h-7 sm:h-8 md:h-9 px-2 sm:px-3 md:px-4 text-xs sm:text-sm"
         >
           Next
           <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 ml-1 sm:ml-2" />
