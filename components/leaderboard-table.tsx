@@ -34,6 +34,7 @@ interface Trader {
   name?: string;
   avatar?: string;
   followers: number;
+  avg_entry_usd: number;
 }
 
 // Allowed sort keys for columns that have numerical data.
@@ -71,6 +72,56 @@ const truncateAddress = (address: string) => {
   const start = address.slice(0, 6);
   const end = address.slice(-4);
   return `${start}...${end}`;
+};
+
+// Add this utility function to format hold time
+const formatHoldTime = (minutes: number) => {
+  if (minutes < 240) { // Less than 4 hours
+    return `${Math.round(minutes)}m`;
+  } else {
+    return `${Math.round(minutes / 60)}h`;
+  }
+};
+
+// Add this utility function for SOL amount formatting
+const formatSolAmount = (amount: number) => {
+  if (amount < 1) {
+    return amount.toFixed(2); // 0.01
+  } else if (amount < 10) {
+    return amount.toFixed(2); // 1.02
+  } else if (amount < 100) {
+    return amount.toFixed(1); // 10.2
+  } else {
+    return Math.round(amount).toString(); // 100
+  }
+};
+
+// Add this utility function for USD amount formatting
+const formatUsdAmount = (amount: number) => {
+  if (amount < 100) {
+    return `$${amount.toFixed(2)}`; // $0.01, $99.99
+  } else if (amount < 1000) {
+    return `$${amount.toFixed(2)}`; // $100.22, $999.99
+  } else {
+    return `$${Math.round(amount).toLocaleString()}`; // $1,000, $10,000
+  }
+};
+
+// Add utility function for average entry amount formatting
+const formatAvgEntryAmount = (amount: number) => {
+  if (amount < 1000) {
+    return `<$1K`;
+  } else if (amount < 10000) {
+    return `$${Math.floor(amount/1000)}K`;
+  } else if (amount < 100000) {
+    return `$${Math.floor(amount/1000)}K`;
+  } else if (amount < 1000000) {
+    return `$${Math.floor(amount/1000)}K`;
+  } else if (amount < 1000000000) {
+    return `$${(amount/1000000).toFixed(1)}M`;
+  } else {
+    return `$${(amount/1000000000).toFixed(1)}B`;
+  }
 };
 
 export function LeaderboardTable() {
@@ -125,7 +176,8 @@ export function LeaderboardTable() {
             roi: trades.reduce((sum, trade) => sum + trade.roi, 0) / trades.length, // Average ROI
             name: firstTrade.name,
             avatar: firstTrade.avatar,
-            followers: firstTrade.followers
+            followers: firstTrade.followers,
+            avg_entry_usd: firstTrade.avg_entry_usd
           };
         });
 
@@ -175,6 +227,14 @@ export function LeaderboardTable() {
     return (trader.sells / totalTrades) * 100;
   };
 
+  // Calculate average hold time for a trader (in minutes)
+  const calculateAvgHoldTime = (trader: Trader) => {
+    const firstDate = new Date(trader.first_trade);
+    const lastDate = new Date(trader.last_trade);
+    const diffInMinutes = Math.round((lastDate.getTime() - firstDate.getTime()) / (1000 * 60));
+    return diffInMinutes;
+  };
+
   // Sort traders based on the current sort configuration.
   const sortedTraders = useMemo(() => {
     const sorted = [...traders].sort((a, b) => {
@@ -209,11 +269,13 @@ export function LeaderboardTable() {
           aValue = a.roi;
           bValue = b.roi;
           break;
-        // Note: avgEntry and avgHold are placeholder sorts since we don't have this data yet
-        case "avgEntry":
         case "avgHold":
-          aValue = 0;
-          bValue = 0;
+          aValue = calculateAvgHoldTime(a);
+          bValue = calculateAvgHoldTime(b);
+          break;
+        case "avgEntry":
+          aValue = a.avg_entry_usd;
+          bValue = b.avg_entry_usd;
           break;
         default:
           aValue = "";
@@ -460,7 +522,7 @@ export function LeaderboardTable() {
                       {trader ? (
                         <div className="flex flex-col items-end">
                           <div className="flex items-center gap-1">
-                            <span>{trader.invested_sol}</span>
+                            <span>{formatSolAmount(trader.invested_sol)}</span>
                             <Image
                               src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Untitled%20(500%20x%20400%20px)%20(1)-EwjxE5rUhSoNSk5kZC7K3W0N5czTxo.svg"
                               alt="SOL"
@@ -469,7 +531,9 @@ export function LeaderboardTable() {
                               className="inline w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4"
                             />
                           </div>
-                          <span className="text-[#858585] font-extralight">${trader.invested_sol_usd}</span>
+                          <span className="text-[#858585] font-extralight">
+                            {formatUsdAmount(trader.invested_sol_usd)}
+                          </span>
                         </div>
                       ) : (
                         <span>-</span>
@@ -477,18 +541,18 @@ export function LeaderboardTable() {
                     </TableCell>
                     {/* Avg Entry */}
                     <TableCell className="w-[80px] sm:w-[100px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3">
-                      <span>-</span>
+                      {trader ? formatAvgEntryAmount(trader.avg_entry_usd) : <span>-</span>}
                     </TableCell>
                     {/* Avg Hold */}
-                    <TableCell className="w-[100px] sm:w-[120px] text-right whitespace-nowrap pr-4 overflow-hidden p-1 sm:p-2 md:p-3">
-                      <span>-</span>
+                    <TableCell className="w-[100px] sm:w-[120px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3">
+                      {trader ? formatHoldTime(calculateAvgHoldTime(trader)) : <span>-</span>}
                     </TableCell>
                     {/* Realized PNL */}
                     <TableCell className="w-[120px] sm:w-[150px] text-right whitespace-nowrap pr-4 overflow-hidden p-1 sm:p-2 md:p-3">
                       {trader ? (
                         <div className="flex flex-col items-end gap-0.5">
                           <div className="flex items-center gap-1 text-sm font-bold">
-                            <span className="text-[#59cc6c]">+{trader.realized_pnl}</span>
+                            <span className="text-[#59cc6c]">+{formatSolAmount(trader.realized_pnl)}</span>
                             <Image
                               src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Untitled%20(500%20x%20400%20px)%20(1)-EwjxE5rUhSoNSk5kZC7K3W0N5czTxo.svg"
                               alt="SOL"
@@ -498,7 +562,7 @@ export function LeaderboardTable() {
                             />
                           </div>
                           <span className="text-[#858585] text-xs font-extralight">
-                            ${trader.realized_pnl_usd}
+                            {formatUsdAmount(trader.realized_pnl_usd)}
                           </span>
                         </div>
                       ) : (

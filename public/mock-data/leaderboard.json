@@ -5,7 +5,7 @@
     "token_name": "SOL",
     "token_address": "0xSOL",
     "first_trade": "2023-09-01T10:00:00Z",
-    "last_trade": "2023-09-15T12:00:00Z",
+    "last_trade": "2023-09-01T12:45:00Z",
     "buys": 5,
     "sells": 3,
     "invested_sol": 20.5,
@@ -15,7 +15,8 @@
     "roi": 15,
     "name": "Orangie",
     "avatar": "/orangie.jpg",
-    "followers": 279
+    "followers": 279,
+    "avg_entry_usd": 850
   },
   {
     "id": "96sErVjEN7LNJ6Uvj63bdRWZxNuBngj56fnT9biHLKBf|0xBTC",
@@ -59,7 +60,7 @@
     "token_name": "BTC",
     "token_address": "0xBTC",
     "first_trade": "2023-09-03T08:00:00Z",
-    "last_trade": "2023-09-17T08:30:00Z",
+    "last_trade": "2023-09-03T11:15:00Z",
     "buys": 10,
     "sells": 7,
     "invested_sol": 50,
@@ -68,7 +69,9 @@
     "realized_pnl_usd": 200,
     "roi": 25,
     "name": "John Doe",
-    "avatar": "https://example.com/johndoe-avatar.png"
+    "avatar": "https://example.com/johndoe-avatar.png",
+    "followers": 124,
+    "avg_entry_usd": 24500
   },
   {
     "id": "0xDEF456|0xETH",
@@ -83,7 +86,9 @@
     "invested_sol_usd": 800,
     "realized_pnl": 5.2,
     "realized_pnl_usd": 120,
-    "roi": 20
+    "roi": 20,
+    "followers": 89,
+    "avg_entry_usd": 120000
   },
   {
     "id": "0x789ABC|0xADA",
@@ -98,7 +103,9 @@
     "invested_sol_usd": 550,
     "realized_pnl": 1.8,
     "realized_pnl_usd": 45,
-    "roi": 10
+    "roi": 10,
+    "followers": 45,
+    "avg_entry_usd": 1300000
   },
   {
     "id": "0x333444|0xDOT",
@@ -113,6 +120,8 @@
     "invested_sol_usd": 400,
     "realized_pnl": -1,
     "realized_pnl_usd": -25,
-    "roi": -5
+    "roi": -5,
+    "followers": 67,
+    "avg_entry_usd": 2100000000
   }
 ] 
