@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Table,
@@ -15,84 +15,40 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
-// Note: The Trader interface no longer handles rank.
+// The Trader interface reflects the JSON API structure.
 interface Trader {
-  name: string;
-  avatar: string;
-  address: string;
-  handle: string;
+  id: string;
+  wallet: string;
+  token_name: string;
+  token_address: string;
+  first_trade: string;
+  last_trade: string;
+  buys: number;
+  sells: number;
+  invested_sol: number;
+  invested_sol_usd: number;
+  realized_pnl: number;
+  realized_pnl_usd: number;
+  roi: number;
+  // Optional properties for later admin overrides.
+  name?: string;
+  avatar?: string;
   followers: number;
-  tokens: number;
-  winRate: number;
-  trades: string; // Format: "buys/sells"
-  avgBuy: { value: number; usd: number };
-  avgEntry: string;
-  avgHold: string;
-  realizedPNL: { value: number; usd: number };
 }
 
-const traders: Trader[] = [
-  {
-    // Data for trader "Orangie"
-    name: "Orangie",
-    avatar:
-      "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/orangie.jpg-X6YaR1BIWidE4CTmLTuPEz0rh70m7E.jpeg",
-    address: "6sdE9C...dD4Sca",
-    handle: "@orangie",
-    followers: 279,
-    tokens: 104,
-    winRate: 74,
-    trades: "201/321",
-    avgBuy: { value: 10.2, usd: 2346 },
-    avgEntry: "$212K",
-    avgHold: "32 m",
-    realizedPNL: { value: 101.2, usd: 23276 },
-  },
-  {
-    name: "CryptoWhale",
-    avatar: "/placeholder.svg?height=40&width=40",
-    address: "7hdF2C...kL9Pqb",
-    handle: "@whale",
-    followers: 156,
-    tokens: 89,
-    winRate: 68,
-    trades: "178/298",
-    avgBuy: { value: 8.7, usd: 1998 },
-    avgEntry: "$180K",
-    avgHold: "45 m",
-    realizedPNL: { value: 89.5, usd: 20585 },
-  },
-  // ... (other traders)
-];
+// Allowed sort keys for columns that have numerical data.
+type SortKey = "roi" | "tradesTotal" | "avgBuy" | "realizedPNL" | "followers" | "tokens" | "winRate" | "avgEntry" | "avgHold";
 
-// Define allowed sort keys. For the "Trades" column we use "tradesTotal"
-// which sums the buys and sells.
-type SortKey =
-  | "followers"
-  | "tokens"
-  | "winRate"
-  | "tradesTotal"
-  | "avgBuy"
-  | "avgEntry"
-  | "avgHold"
-  | "realizedPNL";
-
-// Sorting configuration.
+// Sorting configuration interface.
 interface SortConfig {
   key: SortKey;
   direction: "ascending" | "descending";
 }
 
-/*
-  The SVG in this component draws an arrow that by default (unrotated) points down.
-  To indicate ascending sorting we add a rotate-180, which flips the arrow to point up.
-  Columns that are not sorted receive no direction, so they show the default (down) arrow.
-*/
+// SortIcon component: The SVG arrow flips based on sort direction.
 const SortIcon = ({
-  fill = "#AA00FF",
   direction,
 }: {
-  fill?: string;
   direction?: "ascending" | "descending";
 }) => (
   <svg
@@ -105,34 +61,101 @@ const SortIcon = ({
       direction === "ascending" ? "rotate-180" : ""
     }`}
   >
-    <path d="M5.78125 6L0.585098 0L10.9774 0L5.78125 6Z" fill={fill} />
+    <path d="M5.78125 6L0.585098 0L10.9774 0L5.78125 6Z" fill="#AA00FF" />
   </svg>
 );
 
-// Helper to calculate total trades from a trader's "buys/sells" string.
-const getTradesTotal = (trader: Trader) => {
-  const parts = trader.trades.split("/");
-  if (parts.length !== 2) return 0;
-  const buy = Number(parts[0]);
-  const sell = Number(parts[1]);
-  return buy + sell;
+// Add this utility function at the top of the file
+const truncateAddress = (address: string) => {
+  if (!address) return '';
+  const start = address.slice(0, 6);
+  const end = address.slice(-4);
+  return `${start}...${end}`;
 };
 
 export function LeaderboardTable() {
+  const [traders, setTraders] = useState<Trader[]>([]);
+  const [uniqueTokenCounts, setUniqueTokenCounts] = useState<{ [key: string]: number }>({});
+  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const tradersPerPage = 15;
-  const totalPages = Math.ceil(traders.length / tradersPerPage);
 
-  // This flag indicates whether data has been fetched.
-  // When loading is true, our display rows will be empty.
-  const [loading, setLoading] = useState(false);
-
+  // Use ROI (return on investment) as our default sort key
   const [sortConfig, setSortConfig] = useState<SortConfig>({
-    key: "followers",
-    direction: "ascending",
+    key: "roi",
+    direction: "descending",
   });
 
-  // Called when a header is clicked to change the sort configuration.
+  // Fetch data and aggregate by wallet
+  useEffect(() => {
+    fetch("/mock-data/leaderboard.json")
+      .then((res) => res.json())
+      .then((data: Trader[]) => {
+        // Group trades by wallet
+        const walletGroups: { [key: string]: Trader[] } = {};
+        data.forEach((trade) => {
+          if (!walletGroups[trade.wallet]) {
+            walletGroups[trade.wallet] = [];
+          }
+          walletGroups[trade.wallet].push(trade);
+        });
+
+        // Aggregate data for each wallet
+        const aggregatedTraders = Object.entries(walletGroups).map(([wallet, trades]) => {
+          const firstTrade = trades[0]; // Use first trade for wallet info
+          return {
+            id: wallet,
+            wallet: wallet,
+            token_name: "", // Not needed for aggregated view
+            token_address: "", // Not needed for aggregated view
+            first_trade: trades.reduce((earliest, trade) => 
+              trade.first_trade < earliest ? trade.first_trade : earliest,
+              trades[0].first_trade
+            ),
+            last_trade: trades.reduce((latest, trade) => 
+              trade.last_trade > latest ? trade.last_trade : latest,
+              trades[0].last_trade
+            ),
+            buys: trades.reduce((sum, trade) => sum + trade.buys, 0),
+            sells: trades.reduce((sum, trade) => sum + trade.sells, 0),
+            invested_sol: trades.reduce((sum, trade) => sum + trade.invested_sol, 0),
+            invested_sol_usd: trades.reduce((sum, trade) => sum + trade.invested_sol_usd, 0),
+            realized_pnl: trades.reduce((sum, trade) => sum + trade.realized_pnl, 0),
+            realized_pnl_usd: trades.reduce((sum, trade) => sum + trade.realized_pnl_usd, 0),
+            roi: trades.reduce((sum, trade) => sum + trade.roi, 0) / trades.length, // Average ROI
+            name: firstTrade.name,
+            avatar: firstTrade.avatar,
+            followers: firstTrade.followers
+          };
+        });
+
+        setTraders(aggregatedTraders);
+        
+        // Calculate unique tokens per wallet
+        const tokenCounts: { [key: string]: Set<string> } = {};
+        data.forEach((trade) => {
+          if (!tokenCounts[trade.wallet]) {
+            tokenCounts[trade.wallet] = new Set();
+          }
+          tokenCounts[trade.wallet].add(trade.token_address);
+        });
+
+        // Convert Sets to counts
+        const counts: { [key: string]: number } = {};
+        Object.entries(tokenCounts).forEach(([wallet, tokens]) => {
+          counts[wallet] = tokens.size;
+        });
+
+        setUniqueTokenCounts(counts);
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error("Error fetching data:", error);
+        setLoading(false);
+      });
+  }, []);
+
+  // Handle sorting when a header is clicked.
   const handleSort = (key: SortKey) => {
     setSortConfig((prev) => ({
       key,
@@ -143,65 +166,96 @@ export function LeaderboardTable() {
     }));
   };
 
-  // Sort traders using the currently selected key.
+  // Calculate win rate for a trader (wins / total trades)
+  const calculateWinRate = (trader: Trader) => {
+    const totalTrades = trader.buys + trader.sells;
+    if (totalTrades === 0) return 0;
+    // For this example, let's consider sells as winning trades
+    // You might want to adjust this logic based on your actual win/loss criteria
+    return (trader.sells / totalTrades) * 100;
+  };
+
+  // Sort traders based on the current sort configuration.
   const sortedTraders = useMemo(() => {
     const sorted = [...traders].sort((a, b) => {
       let aValue: number | string;
       let bValue: number | string;
       switch (sortConfig.key) {
+        case "followers":
+          aValue = a.followers || 0;
+          bValue = b.followers || 0;
+          break;
+        case "tokens":
+          aValue = uniqueTokenCounts[a.wallet] || 0;
+          bValue = uniqueTokenCounts[b.wallet] || 0;
+          break;
+        case "winRate":
+          aValue = calculateWinRate(a);
+          bValue = calculateWinRate(b);
+          break;
         case "tradesTotal":
-          aValue = getTradesTotal(a);
-          bValue = getTradesTotal(b);
+          aValue = a.buys + a.sells;
+          bValue = b.buys + b.sells;
           break;
         case "avgBuy":
-          aValue = a.avgBuy.value;
-          bValue = b.avgBuy.value;
+          aValue = a.invested_sol;
+          bValue = b.invested_sol;
           break;
         case "realizedPNL":
-          aValue = a.realizedPNL.value;
-          bValue = b.realizedPNL.value;
+          aValue = a.realized_pnl;
+          bValue = b.realized_pnl;
+          break;
+        case "roi":
+          aValue = a.roi;
+          bValue = b.roi;
+          break;
+        // Note: avgEntry and avgHold are placeholder sorts since we don't have this data yet
+        case "avgEntry":
+        case "avgHold":
+          aValue = 0;
+          bValue = 0;
           break;
         default:
-          // For followers, tokens, winRate, avgEntry, and avgHold
-          aValue = a[sortConfig.key as keyof Trader] as number | string;
-          bValue = b[sortConfig.key as keyof Trader] as number | string;
+          aValue = "";
+          bValue = "";
       }
-
       if (typeof aValue === "number" && typeof bValue === "number") {
         return sortConfig.direction === "ascending"
           ? aValue - bValue
           : bValue - aValue;
       }
-
       return sortConfig.direction === "ascending"
         ? String(aValue).localeCompare(String(bValue))
         : String(bValue).localeCompare(String(aValue));
     });
     return sorted;
-  }, [traders, sortConfig]);
+  }, [traders, sortConfig, uniqueTokenCounts]);
 
   // Calculate pagination indices.
+  const totalPages = Math.ceil(traders.length / tradersPerPage);
   const indexOfLastTrader = currentPage * tradersPerPage;
   const indexOfFirstTrader = indexOfLastTrader - tradersPerPage;
-
-  // When loading (or no data) we create an array of "empty" rows.
-  const displayRows = loading ? new Array(tradersPerPage).fill(null) : sortedTraders.slice(indexOfFirstTrader, indexOfLastTrader);
+  const displayRows = loading
+    ? new Array(tradersPerPage).fill(null)
+    : sortedTraders.slice(indexOfFirstTrader, indexOfLastTrader);
 
   const nextPage = () => setCurrentPage((prev) => Math.min(prev + 1, totalPages));
   const prevPage = () => setCurrentPage((prev) => Math.max(prev - 1, 1));
+
+  // Default values for when manual data isn't available.
+  const defaultAvatar = "/placeholder.svg?height=40&width=40";
+  const defaultName = "RandomTrader";
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-hidden">
         <div className="h-full overflow-x-auto overflow-y-auto bg-[#11121B] relative scrollbar-custom">
           <Table
-            className="table-fixed 
-              min-w-[1000px] sm:min-w-[1200px] md:min-w-[1500px]
-              text-xs sm:text-sm md:text-base"
+            className="table-fixed min-w-[1000px] sm:min-w-[1200px] md:min-w-[1500px] text-xs sm:text-sm md:text-base"
           >
             <TableHeader className="bg-[#25223D] z-10 h-8 sm:h-10 md:h-12">
               <TableRow className="border-b border-[#23242C]">
-                {/* Rank column */}
+                {/* Rank */}
                 <TableHead className="w-[40px] sm:w-[60px] text-center whitespace-nowrap px-2 text-white">
                   Rank
                 </TableHead>
@@ -216,12 +270,8 @@ export function LeaderboardTable() {
                 >
                   <div className="flex items-center justify-end gap-1">
                     Followers
-                    <SortIcon 
-                      direction={
-                        sortConfig.key === "followers" 
-                          ? sortConfig.direction 
-                          : undefined
-                      } 
+                    <SortIcon
+                      direction={sortConfig.key === "followers" ? sortConfig.direction : undefined}
                     />
                   </div>
                 </TableHead>
@@ -232,82 +282,107 @@ export function LeaderboardTable() {
                 >
                   <div className="flex items-center justify-end gap-1">
                     Tokens
-                    <SortIcon direction={sortConfig.key === "tokens" ? sortConfig.direction : undefined} />
+                    <SortIcon
+                      direction={sortConfig.key === "tokens" ? sortConfig.direction : undefined}
+                    />
                   </div>
                 </TableHead>
                 {/* Win Rate */}
                 <TableHead
                   onClick={() => handleSort("winRate")}
-                  className="w-[80px] sm:w-[90px] text-right whitespace-nowrap px-2 text-white cursor-pointer"
+                  className="w-[80px] sm:w-[90px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3 text-white cursor-pointer"
                 >
                   <div className="flex items-center justify-end gap-1">
                     Win Rate
-                    <SortIcon direction={sortConfig.key === "winRate" ? sortConfig.direction : undefined} />
+                    <SortIcon
+                      direction={sortConfig.key === "winRate" ? sortConfig.direction : undefined}
+                    />
+                  </div>
+                </TableHead>
+                {/* ROI */}
+                <TableHead
+                  onClick={() => handleSort("roi")}
+                  className="w-[80px] sm:w-[90px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3 text-white cursor-pointer"
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    ROI
+                    <SortIcon
+                      direction={sortConfig.key === "roi" ? sortConfig.direction : undefined}
+                    />
                   </div>
                 </TableHead>
                 {/* Trades */}
                 <TableHead
                   onClick={() => handleSort("tradesTotal")}
-                  className="w-[80px] sm:w-[100px] text-right whitespace-nowrap px-2 text-white cursor-pointer"
+                  className="w-[80px] sm:w-[100px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3 text-white cursor-pointer"
                 >
                   <div className="flex items-center justify-end gap-1">
                     Trades
-                    <SortIcon direction={sortConfig.key === "tradesTotal" ? sortConfig.direction : undefined} />
+                    <SortIcon
+                      direction={sortConfig.key === "tradesTotal" ? sortConfig.direction : undefined}
+                    />
                   </div>
                 </TableHead>
                 {/* Avg Buy */}
                 <TableHead
                   onClick={() => handleSort("avgBuy")}
-                  className="w-[80px] sm:w-[100px] text-right whitespace-nowrap px-2 text-white cursor-pointer"
+                  className="w-[80px] sm:w-[100px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3 text-white cursor-pointer"
                 >
                   <div className="flex items-center justify-end gap-1">
                     Avg Buy
-                    <SortIcon direction={sortConfig.key === "avgBuy" ? sortConfig.direction : undefined} />
+                    <SortIcon
+                      direction={sortConfig.key === "avgBuy" ? sortConfig.direction : undefined}
+                    />
                   </div>
                 </TableHead>
                 {/* Avg Entry */}
                 <TableHead
                   onClick={() => handleSort("avgEntry")}
-                  className="w-[80px] sm:w-[100px] text-right whitespace-nowrap px-2 text-white cursor-pointer"
+                  className="w-[80px] sm:w-[100px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3 text-white cursor-pointer"
                 >
                   <div className="flex items-center justify-end gap-1">
                     Avg Entry
-                    <SortIcon direction={sortConfig.key === "avgEntry" ? sortConfig.direction : undefined} />
+                    <SortIcon
+                      direction={sortConfig.key === "avgEntry" ? sortConfig.direction : undefined}
+                    />
                   </div>
                 </TableHead>
                 {/* Avg Hold */}
                 <TableHead
                   onClick={() => handleSort("avgHold")}
-                  className="w-[100px] sm:w-[120px] text-right whitespace-nowrap px-2 text-white cursor-pointer"
+                  className="w-[100px] sm:w-[120px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3 text-white cursor-pointer"
                 >
                   <div className="flex items-center justify-end gap-1">
                     Avg Hold
-                    <SortIcon direction={sortConfig.key === "avgHold" ? sortConfig.direction : undefined} />
+                    <SortIcon
+                      direction={sortConfig.key === "avgHold" ? sortConfig.direction : undefined}
+                    />
                   </div>
                 </TableHead>
                 {/* Realized PNL */}
                 <TableHead
                   onClick={() => handleSort("realizedPNL")}
-                  className="w-[120px] sm:w-[150px] text-right whitespace-nowrap px-2 text-white cursor-pointer"
+                  className="w-[120px] sm:w-[150px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3 text-white cursor-pointer"
                 >
                   <div className="flex items-center justify-end gap-1">
                     Realized PNL
-                    <SortIcon fill="#CCAD59" direction={sortConfig.key === "realizedPNL" ? sortConfig.direction : undefined} />
+                    <SortIcon
+                      direction={sortConfig.key === "realizedPNL" ? sortConfig.direction : undefined}
+                    />
                   </div>
                 </TableHead>
                 {/* Share */}
-                <TableHead className="w-[60px] sm:w-[80px] text-center whitespace-nowrap px-2 text-white">
+                <TableHead className="w-[60px] sm:w-[80px] text-center whitespace-nowrap pr-8 p-1 sm:p-2 md:p-3 text-white">
                   Share
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {displayRows.map((trader, index) => {
-                // Compute the global rank regardless of data availability.
                 const globalRank = indexOfFirstTrader + index + 1;
                 return (
                   <TableRow
-                    key={trader ? trader.address : index}
+                    key={trader ? trader.wallet : index}
                     className="border-b border-[#23242C] bg-[#11121B] h-10 sm:h-12 md:h-14"
                   >
                     {/* Rank */}
@@ -329,17 +404,22 @@ export function LeaderboardTable() {
                     {/* Trader */}
                     <TableCell className="w-[160px] sm:w-[200px] text-left whitespace-nowrap p-1 sm:p-2 md:p-3">
                       {trader ? (
-                        <Link href={`/trader/${trader.address}`} className="flex items-center gap-2">
+                        <Link href={`/trader/${trader.wallet}`} className="flex items-center gap-2">
                           <Avatar className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10">
-                            <AvatarImage src={trader.avatar} alt={trader.name} />
-                            <AvatarFallback>{trader.name[0]}</AvatarFallback>
+                            <AvatarImage
+                              src={trader.avatar || defaultAvatar}
+                              alt={(trader.name || defaultName)}
+                            />
+                            <AvatarFallback>
+                              {(trader.name || defaultName)[0]}
+                            </AvatarFallback>
                           </Avatar>
                           <div className="flex flex-col whitespace-nowrap">
                             <span className="font-medium hover:text-[#aa00ff] text-xs sm:text-sm md:text-base">
-                              {trader.name}
+                              {trader.name || defaultName}
                             </span>
                             <span className="text-[10px] sm:text-xs md:text-sm text-[#858585] font-extralight">
-                              {trader.address}
+                              {truncateAddress(trader.wallet)}
                             </span>
                           </div>
                         </Link>
@@ -349,34 +429,27 @@ export function LeaderboardTable() {
                     </TableCell>
                     {/* Followers */}
                     <TableCell className="w-[100px] sm:w-[125px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3">
-                      {trader ? (
-                        <div className="flex flex-col items-end">
-                          <span className="text-sm font-bold">{trader.followers}K</span>
-                          <span className="text-[#858585] text-xs font-extralight">{trader.handle}</span>
-                        </div>
-                      ) : (
-                        <span>-</span>
-                      )}
+                      {trader ? trader.followers : <span>-</span>}
                     </TableCell>
                     {/* Tokens */}
                     <TableCell className="w-[110px] sm:w-[120px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3">
-                      {trader ? trader.tokens : <span>-</span>}
+                      {trader ? uniqueTokenCounts[trader.wallet] || 0 : <span>-</span>}
                     </TableCell>
                     {/* Win Rate */}
                     <TableCell className="w-[80px] sm:w-[90px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3">
-                      {trader ? `${trader.winRate}%` : <span>-</span>}
+                      {trader ? `${calculateWinRate(trader).toFixed(1)}%` : <span>-</span>}
+                    </TableCell>
+                    {/* ROI */}
+                    <TableCell className="w-[80px] sm:w-[90px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3">
+                      {trader ? `${trader.roi}%` : <span>-</span>}
                     </TableCell>
                     {/* Trades */}
                     <TableCell className="w-[80px] sm:w-[100px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3">
                       {trader ? (
                         <>
-                          <span className="text-[#59cc6c] font-bold">
-                            {trader.trades.split("/")[0]}
-                          </span>
+                          <span className="text-[#59cc6c] font-bold">{trader.buys}</span>
                           <span className="text-[#858585]">/</span>
-                          <span className="text-[#CC5959]">
-                            {trader.trades.split("/")[1]}
-                          </span>
+                          <span className="text-[#CC5959]">{trader.sells}</span>
                         </>
                       ) : (
                         <span>-</span>
@@ -385,36 +458,37 @@ export function LeaderboardTable() {
                     {/* Avg Buy */}
                     <TableCell className="w-[80px] sm:w-[100px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3">
                       {trader ? (
-                        <>
-                          {trader.avgBuy.value}{" "}
-                          <Image
-                            src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Untitled%20(500%20x%20400%20px)%20(1)-EwjxE5rUhSoNSk5kZC7K3W0N5czTxo.svg"
-                            alt="SOL"
-                            width={16}
-                            height={16}
-                            className="inline w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4"
-                          />
-                        </>
+                        <div className="flex flex-col items-end">
+                          <div className="flex items-center gap-1">
+                            <span>{trader.invested_sol}</span>
+                            <Image
+                              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Untitled%20(500%20x%20400%20px)%20(1)-EwjxE5rUhSoNSk5kZC7K3W0N5czTxo.svg"
+                              alt="SOL"
+                              width={16}
+                              height={16}
+                              className="inline w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4"
+                            />
+                          </div>
+                          <span className="text-[#858585] font-extralight">${trader.invested_sol_usd}</span>
+                        </div>
                       ) : (
                         <span>-</span>
                       )}
                     </TableCell>
                     {/* Avg Entry */}
                     <TableCell className="w-[80px] sm:w-[100px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3">
-                      {trader ? trader.avgEntry : <span>-</span>}
+                      <span>-</span>
                     </TableCell>
                     {/* Avg Hold */}
                     <TableCell className="w-[100px] sm:w-[120px] text-right whitespace-nowrap pr-4 overflow-hidden p-1 sm:p-2 md:p-3">
-                      {trader ? trader.avgHold : <span>-</span>}
+                      <span>-</span>
                     </TableCell>
                     {/* Realized PNL */}
                     <TableCell className="w-[120px] sm:w-[150px] text-right whitespace-nowrap pr-4 overflow-hidden p-1 sm:p-2 md:p-3">
                       {trader ? (
                         <div className="flex flex-col items-end gap-0.5">
                           <div className="flex items-center gap-1 text-sm font-bold">
-                            <span className="text-[#59cc6c]">
-                              +{trader.realizedPNL.value}
-                            </span>
+                            <span className="text-[#59cc6c]">+{trader.realized_pnl}</span>
                             <Image
                               src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Untitled%20(500%20x%20400%20px)%20(1)-EwjxE5rUhSoNSk5kZC7K3W0N5czTxo.svg"
                               alt="SOL"
@@ -424,7 +498,7 @@ export function LeaderboardTable() {
                             />
                           </div>
                           <span className="text-[#858585] text-xs font-extralight">
-                            ${trader.realizedPNL.usd}
+                            ${trader.realized_pnl_usd}
                           </span>
                         </div>
                       ) : (
