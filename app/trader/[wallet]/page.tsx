@@ -1,14 +1,36 @@
+"use client";
+
 import { Header } from "@/components/header"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Share2 } from "lucide-react"
+import { Share2, Sliders } from "lucide-react"
 import { StatsGrid } from "./stats-grid"
 import { Input } from "@/components/ui/input"
-import { Sliders } from "lucide-react"
 import { ProfileTable } from "@/components/profile-table"
+import { useTraders } from "@/contexts/TraderContext";
 
-export default function TraderProfile() {
+export default function TraderProfile({ params }: { params: { wallet: string } }) {
+  const { traders, loading } = useTraders();
+  const trader = traders.find(t => t.wallet === params.wallet);
+  const defaultAvatar = "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/avatar-placeholder-RU7CnlBGBrQYzHRc6PZqBPqFOlKEOK.png";
+  const defaultName = "Anonymous Trader";
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen text-white">Loading...</div>;
+  }
+
+  if (!trader) {
+    return <div className="flex items-center justify-center min-h-screen text-white">Trader not found</div>;
+  }
+
+  const truncateAddress = (address: string) => {
+    if (!address) return '';
+    const start = address.slice(0, 6);
+    const end = address.slice(-4);
+    return `${start}...${end}`;
+  };
+
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-[#060611] text-white">
       <Header />
@@ -20,14 +42,14 @@ export default function TraderProfile() {
               <div className="flex items-center mx-2 sm:mx-4 md:mx-0">
                 <Avatar className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 mr-4 sm:mr-5 md:mr-6">
                   <AvatarImage
-                    src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/orangie.jpg-X6YaR1BIWidE4CTmLTuPEz0rh70m7E.jpeg"
-                    alt="Orangie"
+                    src={trader.avatar || defaultAvatar}
+                    alt={trader.name || defaultName}
                   />
-                  <AvatarFallback>O</AvatarFallback>
+                  <AvatarFallback>{(trader.name || defaultName)[0]}</AvatarFallback>
                 </Avatar>
                 <div className="flex-grow">
-                  <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Orangie</h1>
-                  <div className="text-xs sm:text-sm md:text-base text-[#858585]">6sdE9C...dD4Sca</div>
+                  <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">{trader.name || defaultName}</h1>
+                  <div className="text-xs sm:text-sm md:text-base text-[#858585]">{truncateAddress(trader.wallet)}</div>
                 </div>
               </div>
 
@@ -35,9 +57,9 @@ export default function TraderProfile() {
                 <div className="bg-[#11121B] p-3 sm:p-4 md:p-5 h-16 sm:h-18 md:h-20 border-b border-[#23242C]">
                   <div className="flex justify-between items-center h-full">
                     <div className="text-xs sm:text-sm md:text-base text-white">X Account</div>
-                    <Link href="https://x.com/orangie" className="text-right hover:text-[#aa00ff]">
-                      <div className="text-xs sm:text-sm md:text-base text-white">@orangie</div>
-                      <div className="text-xs sm:text-sm text-[#858585]">279K followers</div>
+                    <Link href={`https://x.com/${trader.name?.toLowerCase()}`} className="text-right hover:text-[#aa00ff]">
+                      <div className="text-xs sm:text-sm md:text-base text-white">@{trader.name?.toLowerCase()}</div>
+                      <div className="text-xs sm:text-sm text-[#858585]">{trader.followers}K followers</div>
                     </Link>
                   </div>
                 </div>
@@ -46,7 +68,9 @@ export default function TraderProfile() {
                   <div className="flex justify-between items-center h-full">
                     <div className="text-xs sm:text-sm md:text-base text-white">Last Trade</div>
                     <div className="flex items-center gap-1 sm:gap-2 text-white">
-                      <span className="text-xs sm:text-sm md:text-base">30 min ago</span>
+                      <span className="text-xs sm:text-sm md:text-base">
+                        {new Date(trader.last_trade).toLocaleString()}
+                      </span>
                       <span className="text-[#59cc6c]">
                         <svg
                           width="8"
@@ -117,7 +141,7 @@ export default function TraderProfile() {
                 </div>
               </div>
 
-              <StatsGrid />
+              <StatsGrid trader={trader} />
             </div>
           </div>
 
@@ -183,12 +207,11 @@ export default function TraderProfile() {
             </div>
 
             <div className="overflow-x-auto">
-              <ProfileTable />
+              <ProfileTable trader={trader} />
             </div>
           </div>
         </main>
       </div>
     </div>
   )
-}
-
+} 
