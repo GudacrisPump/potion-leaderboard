@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Table,
@@ -24,7 +24,7 @@ interface Trader {
   followers: number;
   tokens: number;
   winRate: number;
-  trades: string;
+  trades: string; // Format: "buys/sells"
   avgBuy: { value: number; usd: number };
   avgEntry: string;
   avgHold: string;
@@ -66,33 +66,121 @@ const traders: Trader[] = [
   // ... (other traders)
 ];
 
+// Define which keys we allow sorting on. For the "Trades"
+// column we use a custom key ("tradesTotal") that sums the buys and sells.
+type SortKey =
+  | "followers"
+  | "tokens"
+  | "winRate"
+  | "tradesTotal"
+  | "avgBuy"
+  | "avgEntry"
+  | "avgHold"
+  | "realizedPNL";
+
+// The sort configuration holds the key and direction.
+interface SortConfig {
+  key: SortKey;
+  direction: "ascending" | "descending";
+}
+
+// Update the sort icon so that it rotates when sorting in descending order.
+const SortIcon = ({
+  fill = "#AA00FF",
+  direction,
+}: {
+  fill?: string;
+  direction?: "ascending" | "descending";
+}) => (
+  <svg
+    width="11.5625"
+    height="6"
+    viewBox="0 0 11.5625 6"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={`ml-1 flex-shrink-0 w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 ${
+      direction === "descending" ? "rotate-180" : ""
+    }`}
+  >
+    <path d="M5.78125 6L0.585098 0L10.9774 0L5.78125 6Z" fill={fill} />
+  </svg>
+);
+
+// Helper to parse the trades string and return the sum of buys+sells.
+const getTradesTotal = (trader: Trader) => {
+  const parts = trader.trades.split("/");
+  if (parts.length !== 2) return 0;
+  const buy = Number(parts[0]);
+  const sell = Number(parts[1]);
+  return buy + sell;
+};
+
 export function LeaderboardTable() {
   const [currentPage, setCurrentPage] = useState(1);
   const tradersPerPage = 15;
   const totalPages = Math.ceil(traders.length / tradersPerPage);
 
+  const [sortConfig, setSortConfig] = useState<SortConfig>({
+    key: "followers",
+    direction: "ascending",
+  });
+
+  // Called whenever a column header is clicked.
+  const handleSort = (key: SortKey) => {
+    let direction: "ascending" | "descending" = "ascending";
+    if (sortConfig.key === key && sortConfig.direction === "ascending") {
+      direction = "descending";
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // Sort the traders based on the chosen sort key.
+  const sortedTraders = useMemo(() => {
+    const sorted = [...traders].sort((a, b) => {
+      let aValue: number | string;
+      let bValue: number | string;
+      switch (sortConfig.key) {
+        case "tradesTotal":
+          aValue = getTradesTotal(a);
+          bValue = getTradesTotal(b);
+          break;
+        case "avgBuy":
+          aValue = a.avgBuy.value;
+          bValue = b.avgBuy.value;
+          break;
+        case "realizedPNL":
+          aValue = a.realizedPNL.value;
+          bValue = b.realizedPNL.value;
+          break;
+        default:
+          // For followers, tokens, winRate, avgEntry, and avgHold
+          aValue = a[sortConfig.key as keyof Trader] as number | string;
+          bValue = b[sortConfig.key as keyof Trader] as number | string;
+      }
+
+      if (typeof aValue === "number" && typeof bValue === "number") {
+        return sortConfig.direction === "ascending"
+          ? aValue - bValue
+          : bValue - aValue;
+      }
+
+      // Fall back to lexical string comparisons.
+      return sortConfig.direction === "ascending"
+        ? String(aValue).localeCompare(String(bValue))
+        : String(bValue).localeCompare(String(aValue));
+    });
+    return sorted;
+  }, [traders, sortConfig]);
+
+  // Pagination: slice the sorted list for the current page.
   const indexOfLastTrader = currentPage * tradersPerPage;
   const indexOfFirstTrader = indexOfLastTrader - tradersPerPage;
-  const currentTraders = traders.slice(indexOfFirstTrader, indexOfLastTrader);
+  const currentTraders = sortedTraders.slice(indexOfFirstTrader, indexOfLastTrader);
 
   const nextPage = () =>
     setCurrentPage((prev) => Math.min(prev + 1, totalPages));
   const prevPage = () =>
     setCurrentPage((prev) => Math.max(prev - 1, 1));
-
-  // SVG for sort icon (upside down triangle)
-  const SortIcon = ({ fill = "#AA00FF" }: { fill?: string }) => (
-    <svg
-      width="11.5625"
-      height="6"
-      viewBox="0 0 11.5625 6"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="ml-1 flex-shrink-0 w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3"
-    >
-      <path d="M5.78125 6L0.585098 0L10.9774 0L5.78125 6Z" fill={fill} />
-    </svg>
-  );
 
   return (
     <div className="flex flex-col h-full">
@@ -114,51 +202,132 @@ export function LeaderboardTable() {
                   Trader
                 </TableHead>
                 {/* Followers */}
-                <TableHead className="w-[100px] sm:w-[125px] text-right whitespace-nowrap px-2 text-white">
+                <TableHead
+                  className="w-[100px] sm:w-[125px] text-right whitespace-nowrap px-2 text-white cursor-pointer"
+                  onClick={() => handleSort("followers")}
+                >
                   <div className="flex items-center justify-end gap-1">
-                    Followers <SortIcon />
+                    Followers
+                    <SortIcon
+                      direction={
+                        sortConfig.key === "followers"
+                          ? sortConfig.direction
+                          : undefined
+                      }
+                    />
                   </div>
                 </TableHead>
                 {/* Tokens */}
-                <TableHead className="w-[110px] sm:w-[120px] text-right whitespace-nowrap px-2 text-white">
+                <TableHead
+                  className="w-[110px] sm:w-[120px] text-right whitespace-nowrap px-2 text-white cursor-pointer"
+                  onClick={() => handleSort("tokens")}
+                >
                   <div className="flex items-center justify-end gap-1">
-                    Tokens <SortIcon />
+                    Tokens
+                    <SortIcon
+                      direction={
+                        sortConfig.key === "tokens"
+                          ? sortConfig.direction
+                          : undefined
+                      }
+                    />
                   </div>
                 </TableHead>
                 {/* Win Rate */}
-                <TableHead className="w-[80px] sm:w-[90px] text-right whitespace-nowrap px-2 text-white">
+                <TableHead
+                  className="w-[80px] sm:w-[90px] text-right whitespace-nowrap px-2 text-white cursor-pointer"
+                  onClick={() => handleSort("winRate")}
+                >
                   <div className="flex items-center justify-end gap-1">
-                    Win Rate <SortIcon />
+                    Win Rate
+                    <SortIcon
+                      direction={
+                        sortConfig.key === "winRate"
+                          ? sortConfig.direction
+                          : undefined
+                      }
+                    />
                   </div>
                 </TableHead>
-                {/* Trades */}
-                <TableHead className="w-[80px] sm:w-[100px] text-right whitespace-nowrap px-2 text-white">
+                {/* Trades (sorts by the sum of buys and sells) */}
+                <TableHead
+                  className="w-[80px] sm:w-[100px] text-right whitespace-nowrap px-2 text-white cursor-pointer"
+                  onClick={() => handleSort("tradesTotal")}
+                >
                   <div className="flex items-center justify-end gap-1">
-                    Trades <SortIcon />
+                    Trades
+                    <SortIcon
+                      direction={
+                        sortConfig.key === "tradesTotal"
+                          ? sortConfig.direction
+                          : undefined
+                      }
+                    />
                   </div>
                 </TableHead>
                 {/* Avg Buy */}
-                <TableHead className="w-[80px] sm:w-[100px] text-right whitespace-nowrap px-2 text-white">
+                <TableHead
+                  className="w-[80px] sm:w-[100px] text-right whitespace-nowrap px-2 text-white cursor-pointer"
+                  onClick={() => handleSort("avgBuy")}
+                >
                   <div className="flex items-center justify-end gap-1">
-                    Avg Buy <SortIcon />
+                    Avg Buy
+                    <SortIcon
+                      direction={
+                        sortConfig.key === "avgBuy"
+                          ? sortConfig.direction
+                          : undefined
+                      }
+                    />
                   </div>
                 </TableHead>
                 {/* Avg Entry */}
-                <TableHead className="w-[80px] sm:w-[100px] text-right whitespace-nowrap px-2 text-white">
+                <TableHead
+                  className="w-[80px] sm:w-[100px] text-right whitespace-nowrap px-2 text-white cursor-pointer"
+                  onClick={() => handleSort("avgEntry")}
+                >
                   <div className="flex items-center justify-end gap-1">
-                    Avg Entry <SortIcon />
+                    Avg Entry
+                    <SortIcon
+                      direction={
+                        sortConfig.key === "avgEntry"
+                          ? sortConfig.direction
+                          : undefined
+                      }
+                    />
                   </div>
                 </TableHead>
                 {/* Avg Hold */}
-                <TableHead className="w-[100px] sm:w-[120px] text-right whitespace-nowrap px-2 text-white">
+                <TableHead
+                  className="w-[100px] sm:w-[120px] text-right whitespace-nowrap px-2 text-white cursor-pointer"
+                  onClick={() => handleSort("avgHold")}
+                >
                   <div className="flex items-center justify-end gap-1">
-                    Avg Hold <SortIcon />
+                    Avg Hold
+                    <SortIcon
+                      direction={
+                        sortConfig.key === "avgHold"
+                          ? sortConfig.direction
+                          : undefined
+                      }
+                    />
                   </div>
                 </TableHead>
                 {/* Realized PNL */}
-                <TableHead className="w-[120px] sm:w-[150px] text-right whitespace-nowrap px-2 text-white">
+                <TableHead
+                  className="w-[120px] sm:w-[150px] text-right whitespace-nowrap px-2 text-white cursor-pointer"
+                  onClick={() => handleSort("realizedPNL")}
+                >
                   <div className="flex items-center justify-end gap-1">
-                    Realized PNL <SortIcon fill="#CCAD59" />
+                    Realized PNL
+                    <SortIcon
+                      fill="#CCAD59"
+                      direction={
+                        sortConfig.key === "realizedPNL"
+                          ? sortConfig.direction
+                          : undefined
+                      }
+                    />
                   </div>
                 </TableHead>
                 {/* Share (no sort icon) */}
