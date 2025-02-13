@@ -552,7 +552,9 @@ export function LeaderboardTable() {
                       {trader ? (
                         <div className="flex flex-col items-end gap-0.5">
                           <div className="flex items-center gap-1 text-sm font-bold">
-                            <span className="text-[#59cc6c]">+{formatSolAmount(trader.realized_pnl)}</span>
+                            <span className={trader.realized_pnl >= 0 ? "text-[#59cc6c]" : "text-[#CC5959]"}>
+                              {trader.realized_pnl >= 0 ? '+' : '-'}{formatSolAmount(Math.abs(trader.realized_pnl))}
+                            </span>
                             <Image
                               src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Untitled%20(500%20x%20400%20px)%20(1)-EwjxE5rUhSoNSk5kZC7K3W0N5czTxo.svg"
                               alt="SOL"
