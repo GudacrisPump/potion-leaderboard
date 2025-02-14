@@ -144,10 +144,10 @@ interface CopiedTooltip {
 export function LeaderboardTable() {
   const [traders, setTraders] = useState<Trader[]>([]);
   const [uniqueTokenCounts, setUniqueTokenCounts] = useState<{ [key: string]: number }>({});
-  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const tradersPerPage = 20;
-  const [timeInterval, setTimeInterval] = useState<"daily" | "weekly" | "monthly" | "all-time">("all-time");
+  const [timeInterval, setTimeInterval] = useState<"daily" | "weekly" | "monthly" | "all-time">("daily");
+  const [allTraders, setAllTraders] = useState<Trader[]>([]); // Store all traders data
 
   // Use ROI (return on investment) as our default sort key
   const [sortConfig, setSortConfig] = useState<SortConfig>({
@@ -222,86 +222,12 @@ export function LeaderboardTable() {
   // Move the data fetching and processing into a separate function
   const fetchAndProcessData = async () => {
     try {
-      setLoading(true);
       const response = await fetch("/mock-data/leaderboard.json");
       const data: Trader[] = await response.json();
-
-      // First, group all trades by wallet
-      const walletGroups: { [key: string]: Trader[] } = {};
-      data.forEach((trade) => {
-        if (!walletGroups[trade.wallet]) {
-          walletGroups[trade.wallet] = [];
-        }
-        walletGroups[trade.wallet].push(trade);
-      });
-
-      // Filter and aggregate data for each wallet based on the time interval
-      const aggregatedTraders = Object.entries(walletGroups)
-        .map(([wallet, trades]) => {
-          // Filter trades for the current time interval
-          const filteredTrades = trades.filter(trade => 
-            isTradeInTimeInterval(trade.first_trade, trade.last_trade)
-          );
-
-          // If no trades in the current interval, return null
-          if (filteredTrades.length === 0) {
-            return null;
-          }
-
-          // Aggregate the filtered trades
-          const firstTrade = filteredTrades[0];
-          return {
-            id: wallet,
-            wallet: wallet,
-            token_name: "",
-            token_address: "",
-            first_trade: filteredTrades.reduce((earliest, trade) => 
-              trade.first_trade < earliest ? trade.first_trade : earliest,
-              filteredTrades[0].first_trade
-            ),
-            last_trade: filteredTrades.reduce((latest, trade) => 
-              trade.last_trade > latest ? trade.last_trade : latest,
-              filteredTrades[0].last_trade
-            ),
-            buys: filteredTrades.reduce((sum, trade) => sum + trade.buys, 0),
-            sells: filteredTrades.reduce((sum, trade) => sum + trade.sells, 0),
-            invested_sol: filteredTrades.reduce((sum, trade) => sum + trade.invested_sol, 0),
-            invested_sol_usd: filteredTrades.reduce((sum, trade) => sum + trade.invested_sol_usd, 0),
-            realized_pnl: filteredTrades.reduce((sum, trade) => sum + trade.realized_pnl, 0),
-            realized_pnl_usd: filteredTrades.reduce((sum, trade) => sum + trade.realized_pnl_usd, 0),
-            roi: filteredTrades.reduce((sum, trade) => sum + trade.roi, 0) / filteredTrades.length,
-            name: firstTrade.name,
-            avatar: firstTrade.avatar,
-            followers: firstTrade.followers,
-            avg_entry_usd: firstTrade.avg_entry_usd
-          };
-        })
-        .filter((trader): trader is Trader => trader !== null);
-
-      setTraders(aggregatedTraders);
-      
-      // Calculate unique tokens per wallet for the filtered period
-      const tokenCounts: { [key: string]: Set<string> } = {};
-      data.forEach((trade) => {
-        if (isTradeInTimeInterval(trade.first_trade, trade.last_trade)) {
-          if (!tokenCounts[trade.wallet]) {
-            tokenCounts[trade.wallet] = new Set();
-          }
-          tokenCounts[trade.wallet].add(trade.token_address);
-        }
-      });
-
-      // Convert Sets to counts
-      const counts: { [key: string]: number } = {};
-      Object.entries(tokenCounts).forEach(([wallet, tokens]) => {
-        counts[wallet] = tokens.size;
-      });
-
-      setUniqueTokenCounts(counts);
+      setAllTraders(data);
+      processTraders(data);
     } catch (error) {
       console.error("Error fetching data:", error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -406,9 +332,7 @@ export function LeaderboardTable() {
   const totalPages = Math.ceil(traders.length / tradersPerPage);
   const indexOfLastTrader = currentPage * tradersPerPage;
   const indexOfFirstTrader = indexOfLastTrader - tradersPerPage;
-  const displayRows = loading
-    ? new Array(tradersPerPage).fill(null)
-    : sortedTraders.slice(indexOfFirstTrader, indexOfLastTrader);
+  const displayRows = sortedTraders.slice(indexOfFirstTrader, indexOfLastTrader);
 
   const nextPage = () => setCurrentPage((prev) => Math.min(prev + 1, totalPages));
   const prevPage = () => setCurrentPage((prev) => Math.max(prev - 1, 1));
@@ -416,6 +340,82 @@ export function LeaderboardTable() {
   // Default values for when manual data isn't available.
   const defaultAvatar = "/placeholder.svg?height=40&width=40";
   const defaultName = "RandomTrader";
+
+  // Process traders and calculate unique token counts
+  const processTraders = (data: Trader[]) => {
+    // First, group all trades by wallet
+    const walletGroups: { [key: string]: Trader[] } = {};
+    data.forEach((trade) => {
+      if (!walletGroups[trade.wallet]) {
+        walletGroups[trade.wallet] = [];
+      }
+      walletGroups[trade.wallet].push(trade);
+    });
+
+    // Filter and aggregate data for each wallet based on the time interval
+    const aggregatedTraders = Object.entries(walletGroups)
+      .map(([wallet, trades]) => {
+        // Filter trades for the current time interval
+        const filteredTrades = trades.filter(trade => 
+          isTradeInTimeInterval(trade.first_trade, trade.last_trade)
+        );
+
+        // If no trades in the current interval, return null
+        if (filteredTrades.length === 0) {
+          return null;
+        }
+
+        // Aggregate the filtered trades
+        const firstTrade = filteredTrades[0];
+        return {
+          id: wallet,
+          wallet: wallet,
+          token_name: "",
+          token_address: "",
+          first_trade: filteredTrades.reduce((earliest, trade) => 
+            trade.first_trade < earliest ? trade.first_trade : earliest,
+            filteredTrades[0].first_trade
+          ),
+          last_trade: filteredTrades.reduce((latest, trade) => 
+            trade.last_trade > latest ? trade.last_trade : latest,
+            filteredTrades[0].last_trade
+          ),
+          buys: filteredTrades.reduce((sum, trade) => sum + trade.buys, 0),
+          sells: filteredTrades.reduce((sum, trade) => sum + trade.sells, 0),
+          invested_sol: filteredTrades.reduce((sum, trade) => sum + trade.invested_sol, 0),
+          invested_sol_usd: filteredTrades.reduce((sum, trade) => sum + trade.invested_sol_usd, 0),
+          realized_pnl: filteredTrades.reduce((sum, trade) => sum + trade.realized_pnl, 0),
+          realized_pnl_usd: filteredTrades.reduce((sum, trade) => sum + trade.realized_pnl_usd, 0),
+          roi: filteredTrades.reduce((sum, trade) => sum + trade.roi, 0) / filteredTrades.length,
+          name: firstTrade.name,
+          avatar: firstTrade.avatar,
+          followers: firstTrade.followers,
+          avg_entry_usd: firstTrade.avg_entry_usd
+        };
+      })
+      .filter((trader): trader is Trader => trader !== null);
+
+    setTraders(aggregatedTraders);
+    
+    // Calculate unique tokens per wallet for the filtered period
+    const tokenCounts: { [key: string]: Set<string> } = {};
+    data.forEach((trade) => {
+      if (isTradeInTimeInterval(trade.first_trade, trade.last_trade)) {
+        if (!tokenCounts[trade.wallet]) {
+          tokenCounts[trade.wallet] = new Set();
+        }
+        tokenCounts[trade.wallet].add(trade.token_address);
+      }
+    });
+
+    // Convert Sets to counts
+    const counts: { [key: string]: number } = {};
+    Object.entries(tokenCounts).forEach(([wallet, tokens]) => {
+      counts[wallet] = tokens.size;
+    });
+
+    setUniqueTokenCounts(counts);
+  };
 
   return (
     <>
