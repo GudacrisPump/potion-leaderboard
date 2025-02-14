@@ -9,6 +9,7 @@ import { Share2, Sliders } from "lucide-react"
 import { StatsGrid } from "./stats-grid"
 import { Input } from "@/components/ui/input"
 import { useTraders } from "@/contexts/TraderContext";
+import { TraderTable } from "./trader-table"
 
 type TimeInterval = "daily" | "weekly" | "monthly" | "all-time";
 
@@ -227,6 +228,14 @@ export default function TraderProfile({ params }: { params: { wallet: string } }
 
               <StatsGrid trader={filteredTrader} />
             </div>
+          </div>
+
+          {console.log('Filtered Trader Data:', filteredTrader)}
+          
+          <div className="mt-8 min-h-[200px]">
+            {filteredTrader && (
+              <TraderTable trader={filteredTrader} />
+            )}
           </div>
         </main>
       </div>
