@@ -466,7 +466,7 @@ export function LeaderboardTable() {
                 >
                   Groups
                 </Button>
-                <div className="absolute top-full left-0 mt-1 px-2 py-1 bg-[#25223d] text-white text-[8px] sm:text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
+                <div className="absolute top-[-10px] right-[-35px] px-[8px] py-[4px] bg-[#23242C] text-white text-[8px] sm:text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap border border-[#AA00FF]">
                   coming soon...
                 </div>
               </div>
