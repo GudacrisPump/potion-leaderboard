@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Header } from "@/components/header"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import Link from "next/link"
@@ -10,8 +11,11 @@ import { Input } from "@/components/ui/input"
 import { ProfileTable } from "@/components/profile-table"
 import { useTraders } from "@/contexts/TraderContext";
 
+type TimeInterval = "daily" | "weekly" | "monthly" | "all-time";
+
 export default function TraderProfile({ params }: { params: { wallet: string } }) {
   const { traders, loading } = useTraders();
+  const [timeInterval, setTimeInterval] = useState<TimeInterval>("daily");
   const trader = traders.find(t => t.wallet === params.wallet);
   const defaultAvatar = "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/avatar-placeholder-RU7CnlBGBrQYzHRc6PZqBPqFOlKEOK.png";
   const defaultName = "Anonymous Trader";
@@ -30,6 +34,50 @@ export default function TraderProfile({ params }: { params: { wallet: string } }
     const end = address.slice(-4);
     return `${start}...${end}`;
   };
+
+  const getFilteredData = (trader: any, interval: TimeInterval) => {
+    const now = new Date();
+    const traderData = { ...trader }; // Create a copy to modify
+
+    switch (interval) {
+      case "daily":
+        const oneDayAgo = new Date(now.setDate(now.getDate() - 1));
+        // Filter trades within last 24 hours
+        return filterTraderDataByDate(traderData, oneDayAgo);
+      
+      case "weekly":
+        const oneWeekAgo = new Date(now.setDate(now.getDate() - 7));
+        return filterTraderDataByDate(traderData, oneWeekAgo);
+      
+      case "monthly":
+        const oneMonthAgo = new Date(now.setMonth(now.getMonth() - 1));
+        return filterTraderDataByDate(traderData, oneMonthAgo);
+      
+      case "all-time":
+      default:
+        return traderData;
+    }
+  };
+
+  const filterTraderDataByDate = (trader: any, startDate: Date) => {
+    const lastTradeDate = new Date(trader.last_trade);
+    if (lastTradeDate < startDate) {
+      // No trades in this period
+      return {
+        ...trader,
+        buys: 0,
+        sells: 0,
+        invested_sol: 0,
+        invested_sol_usd: 0,
+        realized_pnl: 0,
+        realized_pnl_usd: 0,
+        roi: 0
+      };
+    }
+    return trader;
+  };
+
+  const filteredTrader = trader ? getFilteredData(trader, timeInterval) : null;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-[#060611] text-white">
@@ -93,26 +141,46 @@ export default function TraderProfile({ params }: { params: { wallet: string } }
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                   <Button
-                    variant="secondary"
-                    className="h-7 sm:h-8 md:h-9 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 rounded-full bg-[#25223d] text-white border border-[#464558] hover:bg-[#464558] font-extralight text-[10px] sm:text-xs md:text-sm"
+                    variant={timeInterval === "daily" ? "secondary" : "ghost"}
+                    className={`h-7 sm:h-8 md:h-9 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 rounded-full ${
+                      timeInterval === "daily"
+                        ? "bg-[#25223d] text-white border border-[#464558] hover:bg-[#464558]"
+                        : "text-[#858585] hover:text-white hover:bg-[#464558]"
+                    } font-extralight text-[10px] sm:text-xs md:text-sm`}
+                    onClick={() => setTimeInterval("daily")}
                   >
                     Daily
                   </Button>
                   <Button
-                    variant="ghost"
-                    className="h-7 sm:h-8 md:h-9 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 rounded-full text-[#858585] hover:text-white hover:bg-[#464558] font-extralight text-[10px] sm:text-xs md:text-sm"
+                    variant={timeInterval === "weekly" ? "secondary" : "ghost"}
+                    className={`h-7 sm:h-8 md:h-9 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 rounded-full ${
+                      timeInterval === "weekly"
+                        ? "bg-[#25223d] text-white border border-[#464558] hover:bg-[#464558]"
+                        : "text-[#858585] hover:text-white hover:bg-[#464558]"
+                    } font-extralight text-[10px] sm:text-xs md:text-sm`}
+                    onClick={() => setTimeInterval("weekly")}
                   >
                     Weekly
                   </Button>
                   <Button
-                    variant="ghost"
-                    className="h-7 sm:h-8 md:h-9 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 rounded-full text-[#858585] hover:text-white hover:bg-[#464558] font-extralight text-[10px] sm:text-xs md:text-sm"
+                    variant={timeInterval === "monthly" ? "secondary" : "ghost"}
+                    className={`h-7 sm:h-8 md:h-9 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 rounded-full ${
+                      timeInterval === "monthly"
+                        ? "bg-[#25223d] text-white border border-[#464558] hover:bg-[#464558]"
+                        : "text-[#858585] hover:text-white hover:bg-[#464558]"
+                    } font-extralight text-[10px] sm:text-xs md:text-sm`}
+                    onClick={() => setTimeInterval("monthly")}
                   >
                     Monthly
                   </Button>
                   <Button
-                    variant="ghost"
-                    className="h-7 sm:h-8 md:h-9 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 rounded-full text-[#858585] hover:text-white hover:bg-[#464558] font-extralight text-[10px] sm:text-xs md:text-sm"
+                    variant={timeInterval === "all-time" ? "secondary" : "ghost"}
+                    className={`h-7 sm:h-8 md:h-9 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 rounded-full ${
+                      timeInterval === "all-time"
+                        ? "bg-[#25223d] text-white border border-[#464558] hover:bg-[#464558]"
+                        : "text-[#858585] hover:text-white hover:bg-[#464558]"
+                    } font-extralight text-[10px] sm:text-xs md:text-sm`}
+                    onClick={() => setTimeInterval("all-time")}
                   >
                     All-Time
                   </Button>
@@ -141,7 +209,7 @@ export default function TraderProfile({ params }: { params: { wallet: string } }
                 </div>
               </div>
 
-              <StatsGrid trader={trader} />
+              <StatsGrid trader={filteredTrader} />
             </div>
           </div>
 

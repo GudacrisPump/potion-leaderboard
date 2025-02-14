@@ -10,10 +10,12 @@ import {
   TableRow,
   TableHeader,
 } from "@/components/ui/table";
-import { Share2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Share2, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { Input } from "@/components/ui/input";
+import { Sliders } from "lucide-react";
 
 // The Trader interface reflects the JSON API structure.
 interface Trader {
@@ -145,6 +147,7 @@ export function LeaderboardTable() {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const tradersPerPage = 20;
+  const [timeInterval, setTimeInterval] = useState<"daily" | "weekly" | "monthly" | "all-time">("all-time");
 
   // Use ROI (return on investment) as our default sort key
   const [sortConfig, setSortConfig] = useState<SortConfig>({
@@ -154,6 +157,9 @@ export function LeaderboardTable() {
 
   // Add state for managing copy feedback
   const [copiedTooltip, setCopiedTooltip] = useState<CopiedTooltip | null>(null);
+
+  const intervals = ["daily", "weekly", "monthly", "all-time"] as const;
+  type TimeInterval = typeof intervals[number];
 
   // Update the handler function
   const handleCopyWallet = (wallet: string, event: React.MouseEvent) => {
@@ -168,75 +174,147 @@ export function LeaderboardTable() {
     setTimeout(() => setCopiedTooltip(null), 500);
   };
 
-  // Fetch data and aggregate by wallet
-  useEffect(() => {
-    fetch("/mock-data/leaderboard.json")
-      .then((res) => res.json())
-      .then((data: Trader[]) => {
-        // Group trades by wallet
-        const walletGroups: { [key: string]: Trader[] } = {};
-        data.forEach((trade) => {
-          if (!walletGroups[trade.wallet]) {
-            walletGroups[trade.wallet] = [];
-          }
-          walletGroups[trade.wallet].push(trade);
-        });
+  // Add a function to check if a trade falls within the selected time interval
+  const isTradeInTimeInterval = (firstTrade: string, lastTrade: string) => {
+    try {
+      // Use a fixed date for testing (January 16, 2024)
+      const now = new Date('2024-01-16T12:00:00Z');
+      
+      // Validate date strings and create Date objects
+      const startDate = new Date(firstTrade);
+      const endDate = new Date(lastTrade);
 
-        // Aggregate data for each wallet
-        const aggregatedTraders = Object.entries(walletGroups).map(([wallet, trades]) => {
-          const firstTrade = trades[0]; // Use first trade for wallet info
+      // Check if dates are valid
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        console.error('Invalid date detected:', { firstTrade, lastTrade });
+        return false;
+      }
+      
+      switch (timeInterval) {
+        case "daily":
+          // Compare only the date part (year, month, day), ignoring time
+          const today = now.toISOString().split('T')[0];
+          const tradeDate = endDate.toISOString().split('T')[0];
+          return today === tradeDate;
+          
+        case "weekly":
+          const weekAgo = new Date(now);
+          weekAgo.setDate(now.getDate() - 7);
+          return endDate >= weekAgo;
+          
+        case "monthly":
+          const monthAgo = new Date(now);
+          monthAgo.setDate(now.getDate() - 30);
+          return endDate >= monthAgo;
+          
+        case "all-time":
+          return true;
+          
+        default:
+          return false;
+      }
+    } catch (error) {
+      console.error('Error processing dates:', error, { firstTrade, lastTrade });
+      return false;
+    }
+  };
+
+  // Move the data fetching and processing into a separate function
+  const fetchAndProcessData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/mock-data/leaderboard.json");
+      const data: Trader[] = await response.json();
+
+      // First, group all trades by wallet
+      const walletGroups: { [key: string]: Trader[] } = {};
+      data.forEach((trade) => {
+        if (!walletGroups[trade.wallet]) {
+          walletGroups[trade.wallet] = [];
+        }
+        walletGroups[trade.wallet].push(trade);
+      });
+
+      // Filter and aggregate data for each wallet based on the time interval
+      const aggregatedTraders = Object.entries(walletGroups)
+        .map(([wallet, trades]) => {
+          // Filter trades for the current time interval
+          const filteredTrades = trades.filter(trade => 
+            isTradeInTimeInterval(trade.first_trade, trade.last_trade)
+          );
+
+          // If no trades in the current interval, return null
+          if (filteredTrades.length === 0) {
+            return null;
+          }
+
+          // Aggregate the filtered trades
+          const firstTrade = filteredTrades[0];
           return {
             id: wallet,
             wallet: wallet,
-            token_name: "", // Not needed for aggregated view
-            token_address: "", // Not needed for aggregated view
-            first_trade: trades.reduce((earliest, trade) => 
+            token_name: "",
+            token_address: "",
+            first_trade: filteredTrades.reduce((earliest, trade) => 
               trade.first_trade < earliest ? trade.first_trade : earliest,
-              trades[0].first_trade
+              filteredTrades[0].first_trade
             ),
-            last_trade: trades.reduce((latest, trade) => 
+            last_trade: filteredTrades.reduce((latest, trade) => 
               trade.last_trade > latest ? trade.last_trade : latest,
-              trades[0].last_trade
+              filteredTrades[0].last_trade
             ),
-            buys: trades.reduce((sum, trade) => sum + trade.buys, 0),
-            sells: trades.reduce((sum, trade) => sum + trade.sells, 0),
-            invested_sol: trades.reduce((sum, trade) => sum + trade.invested_sol, 0),
-            invested_sol_usd: trades.reduce((sum, trade) => sum + trade.invested_sol_usd, 0),
-            realized_pnl: trades.reduce((sum, trade) => sum + trade.realized_pnl, 0),
-            realized_pnl_usd: trades.reduce((sum, trade) => sum + trade.realized_pnl_usd, 0),
-            roi: trades.reduce((sum, trade) => sum + trade.roi, 0) / trades.length, // Average ROI
+            buys: filteredTrades.reduce((sum, trade) => sum + trade.buys, 0),
+            sells: filteredTrades.reduce((sum, trade) => sum + trade.sells, 0),
+            invested_sol: filteredTrades.reduce((sum, trade) => sum + trade.invested_sol, 0),
+            invested_sol_usd: filteredTrades.reduce((sum, trade) => sum + trade.invested_sol_usd, 0),
+            realized_pnl: filteredTrades.reduce((sum, trade) => sum + trade.realized_pnl, 0),
+            realized_pnl_usd: filteredTrades.reduce((sum, trade) => sum + trade.realized_pnl_usd, 0),
+            roi: filteredTrades.reduce((sum, trade) => sum + trade.roi, 0) / filteredTrades.length,
             name: firstTrade.name,
             avatar: firstTrade.avatar,
             followers: firstTrade.followers,
             avg_entry_usd: firstTrade.avg_entry_usd
           };
-        });
+        })
+        .filter((trader): trader is Trader => trader !== null);
 
-        setTraders(aggregatedTraders);
-        
-        // Calculate unique tokens per wallet
-        const tokenCounts: { [key: string]: Set<string> } = {};
-        data.forEach((trade) => {
+      setTraders(aggregatedTraders);
+      
+      // Calculate unique tokens per wallet for the filtered period
+      const tokenCounts: { [key: string]: Set<string> } = {};
+      data.forEach((trade) => {
+        if (isTradeInTimeInterval(trade.first_trade, trade.last_trade)) {
           if (!tokenCounts[trade.wallet]) {
             tokenCounts[trade.wallet] = new Set();
           }
           tokenCounts[trade.wallet].add(trade.token_address);
-        });
-
-        // Convert Sets to counts
-        const counts: { [key: string]: number } = {};
-        Object.entries(tokenCounts).forEach(([wallet, tokens]) => {
-          counts[wallet] = tokens.size;
-        });
-
-        setUniqueTokenCounts(counts);
-        setLoading(false);
-      })
-      .catch((error) => {
-        console.error("Error fetching data:", error);
-        setLoading(false);
+        }
       });
-  }, []);
+
+      // Convert Sets to counts
+      const counts: { [key: string]: number } = {};
+      Object.entries(tokenCounts).forEach(([wallet, tokens]) => {
+        counts[wallet] = tokens.size;
+      });
+
+      setUniqueTokenCounts(counts);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Call fetchAndProcessData when component mounts or timeInterval changes
+  useEffect(() => {
+    fetchAndProcessData();
+  }, [timeInterval]);
+
+  // Handle interval button clicks
+  const handleIntervalChange = (newInterval: typeof timeInterval) => {
+    setTraders([]); // Clear existing data
+    setTimeInterval(newInterval); // This will trigger the useEffect
+  };
 
   // Handle sorting when a header is clicked.
   const handleSort = (key: SortKey) => {
@@ -342,6 +420,68 @@ export function LeaderboardTable() {
   return (
     <>
       <div className="flex flex-col h-full pb-2">
+        <div className="flex flex-col xl:flex-row gap-4 xl:gap-0 xl:items-center xl:justify-between mb-6">
+          {/* Top row in tablet/small desktop - Contains Traders/Groups and interval buttons */}
+          <div className="flex items-center justify-between xl:justify-start">
+            {/* Left side - Traders/Groups buttons */}
+            <div className="flex items-center gap-2 xl:mr-8">
+              <Button
+                variant="secondary"
+                className="h-7 sm:h-8 md:h-9 px-2 sm:px-3 md:px-4 text-[10px] sm:text-xs md:text-sm rounded-full bg-[#25223d] text-white border border-[#464558] hover:bg-[#464558] font-extralight"
+              >
+                Traders
+              </Button>
+              <div className="relative group">
+                <Button
+                  variant="ghost"
+                  className="h-7 sm:h-8 md:h-9 px-2 sm:px-3 md:px-4 text-[10px] sm:text-xs md:text-sm rounded-full text-[#858585] hover:text-white hover:bg-[#464558] font-extralight"
+                >
+                  Groups
+                </Button>
+                <div className="absolute top-full left-0 mt-1 px-2 py-1 bg-[#25223d] text-white text-[8px] sm:text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
+                  coming soon...
+                </div>
+              </div>
+            </div>
+
+            {/* Middle - Time interval buttons */}
+            <div className="flex items-center gap-2">
+              {intervals.map((interval) => (
+                <Button
+                  key={interval}
+                  variant={timeInterval === interval ? "secondary" : "ghost"}
+                  className={`h-7 sm:h-8 md:h-9 px-2 sm:px-3 md:px-4 text-[10px] sm:text-xs md:text-sm rounded-full ${
+                    timeInterval === interval
+                      ? "bg-[#25223d] text-white border border-[#464558] hover:bg-[#464558]"
+                      : "text-[#858585] hover:text-white hover:bg-[#464558]"
+                  } font-extralight`}
+                  onClick={() => handleIntervalChange(interval)}
+                >
+                  {interval.charAt(0).toUpperCase() + interval.slice(1)}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Bottom row in tablet/small desktop - Search and filter */}
+          <div className="flex items-center gap-2 w-full xl:w-auto">
+            <div className="relative flex-1 xl:flex-initial">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 text-[#858585]" />
+              <Input
+                type="text"
+                placeholder="Search by name or wallet"
+                className="h-[37px] w-full xl:w-[414px] bg-[#060611] border-[#464558] border text-white placeholder:text-[#858585] text-[10px] sm:text-xs md:text-sm font-extralight rounded-[20px] pl-9 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-[#464558]"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-[37px] w-[53px] rounded-[20px] bg-[#11121B] border-[#464558] border text-[#858585] hover:text-white hover:bg-[#464558]"
+            >
+              <Sliders className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4" />
+            </Button>
+          </div>
+        </div>
         <div className="flex-1 overflow-hidden relative">
           <div className="absolute inset-0 overflow-x-auto overflow-y-auto scrollbar-custom [.scrolling-active_&]:scrollbar-thumb-visible scrollbar-thumb-transparent scrollbar-y-transparent [.scrolling-active_&]:scrollbar-y-visible">
             <Table className="table-fixed w-full min-w-[1000px] sm:min-w-[1200px] md:min-w-[1500px] text-xs sm:text-sm md:text-base">
