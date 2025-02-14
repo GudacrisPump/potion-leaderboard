@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import "./globals.css"
 import type React from "react"
 import { TraderProvider } from "@/contexts/TraderContext"
+import { WalletProvider } from "@/contexts/WalletContext"
 
 const sora = Sora({
   subsets: ["latin"],
@@ -26,9 +27,11 @@ export default function RootLayout({
   return (
     <html lang="en" className={sora.variable}>
       <body className={`${sora.variable} font-sans bg-[#060611] text-white overflow-hidden`}>
-        <TraderProvider>
-          {children}
-        </TraderProvider>
+        <WalletProvider>
+          <TraderProvider>
+            {children}
+          </TraderProvider>
+        </WalletProvider>
       </body>
     </html>
   )

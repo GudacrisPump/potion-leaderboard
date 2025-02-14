@@ -19,7 +19,7 @@ interface StatsGridProps {
 export function StatsGrid({ trader, timeInterval = "all-time" }: StatsGridProps) {
   const calculateWinRate = (trader: { buys: number; sells: number }) => {
     const totalTrades = trader.buys + trader.sells;
-    return totalTrades > 0 ? (trader.buys / totalTrades) * 100 : 0;
+    return totalTrades > 0 ? Math.floor((trader.buys / totalTrades) * 100) : 0;
   };
 
   const calculateHoldTime = (firstTrade: string, lastTrade: string) => {
@@ -27,6 +27,15 @@ export function StatsGrid({ trader, timeInterval = "all-time" }: StatsGridProps)
     const end = new Date(lastTrade);
     const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     return diffDays.toString();
+  };
+
+  const formatSolAmount = (amount: number) => {
+    if (amount === 0) return '0';
+    if (Math.abs(amount) < 0.01) return '<0.01';
+    if (Math.abs(amount) < 1) return amount.toFixed(2);    // 0.01 - 0.99
+    if (Math.abs(amount) < 10) return amount.toFixed(2);   // 1.02 - 9.99
+    if (Math.abs(amount) < 100) return amount.toFixed(1);  // 10.2 - 99.9
+    return Math.round(amount).toString();                  // 100+
   };
 
   return (
@@ -52,7 +61,9 @@ export function StatsGrid({ trader, timeInterval = "all-time" }: StatsGridProps)
             <div className="text-[10px] sm:text-[12px] md:text-[14px] font-normal text-white">Average Buy</div>
             <div className="text-right flex flex-col items-end">
               <div className="flex items-center gap-1">
-                <span className="text-[10px] sm:text-[12px] md:text-[14px] font-extralight">{trader.invested_sol.toFixed(2)}</span>
+                <span className="text-[10px] sm:text-[12px] md:text-[14px] font-extralight">
+                  {formatSolAmount(trader.invested_sol)}
+                </span>
                 <Image
                   src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Untitled%20(500%20x%20400%20px)%20(1)-ljZ0Ls99wSMA4rHjPOt21BjznDTkok.svg"
                   alt="SOL"
@@ -61,7 +72,9 @@ export function StatsGrid({ trader, timeInterval = "all-time" }: StatsGridProps)
                   className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4"
                 />
               </div>
-              <span className="text-[8px] sm:text-[10px] md:text-[12px] text-[#858585]">${trader.invested_sol_usd.toLocaleString()}</span>
+              <span className="text-[8px] sm:text-[10px] md:text-[12px] text-[#858585]">
+                ${trader.invested_sol_usd.toLocaleString()}
+              </span>
             </div>
           </div>
         </div>
@@ -75,7 +88,7 @@ export function StatsGrid({ trader, timeInterval = "all-time" }: StatsGridProps)
             <div className="text-right flex flex-col items-end">
               <div className="flex items-center gap-1">
                 <span className="text-[10px] sm:text-[12px] md:text-[14px] font-extralight">
-                  {trader.invested_sol.toFixed(2)}
+                  {formatSolAmount(trader.invested_sol)}
                 </span>
                 <Image
                   src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Untitled%20(500%20x%20400%20px)%20(1)-ljZ0Ls99wSMA4rHjPOt21BjznDTkok.svg"
@@ -173,7 +186,7 @@ export function StatsGrid({ trader, timeInterval = "all-time" }: StatsGridProps)
             <div className="text-[10px] sm:text-[12px] md:text-[14px] font-normal text-white">Realized PNL</div>
             <div className="text-right">
               <div className={`text-[10px] sm:text-[12px] md:text-[14px] font-extralight ${trader.realized_pnl >= 0 ? 'text-[#59cc6c]' : 'text-[#CC5959]'}`}>
-                {trader.realized_pnl.toFixed(2)} SOL
+                {trader.realized_pnl >= 0 ? '' : '-'}{formatSolAmount(Math.abs(trader.realized_pnl))} SOL
               </div>
               <div className="text-[8px] sm:text-[10px] md:text-[12px] text-[#858585]">
                 ${trader.realized_pnl_usd.toLocaleString()}

@@ -87,15 +87,12 @@ const formatHoldTime = (minutes: number) => {
 
 // Add this utility function for SOL amount formatting
 const formatSolAmount = (amount: number) => {
-  if (amount < 1) {
-    return amount.toFixed(2); // 0.01
-  } else if (amount < 10) {
-    return amount.toFixed(2); // 1.02
-  } else if (amount < 100) {
-    return amount.toFixed(1); // 10.2
-  } else {
-    return Math.round(amount).toString(); // 100
-  }
+  if (amount === 0) return '0';
+  if (Math.abs(amount) < 0.01) return '<0.01';
+  if (Math.abs(amount) < 1) return amount.toFixed(2);    // 0.01 - 0.99
+  if (Math.abs(amount) < 10) return amount.toFixed(2);   // 1.02 - 9.99
+  if (Math.abs(amount) < 100) return amount.toFixed(1);  // 10.2 - 99.9
+  return Math.round(amount).toString();                  // 100+
 };
 
 // Add this utility function for USD amount formatting
@@ -149,6 +146,7 @@ export function LeaderboardTable() {
   const tradersPerPage = 20;
   const [timeInterval, setTimeInterval] = useState<"daily" | "weekly" | "monthly" | "all-time">("daily");
   const [allTraders, setAllTraders] = useState<Trader[]>([]);
+  const [showWalletModal, setShowWalletModal] = useState(false);
 
   // Use ROI (return on investment) as our default sort key
   const [sortConfig, setSortConfig] = useState<SortConfig>({
@@ -434,6 +432,11 @@ export function LeaderboardTable() {
   const defaultAvatar = "/placeholder.svg?height=40&width=40";
   const defaultName = "RandomTrader";
 
+  // Update the filter button click handler
+  const handleFilterClick = () => {
+    setShowWalletModal(true);
+  };
+
   return (
     <>
       <div className="flex flex-col h-full pb-2">
@@ -495,6 +498,7 @@ export function LeaderboardTable() {
             <Button
               variant="outline"
               size="icon"
+              onClick={handleFilterClick}
               className="h-[37px] w-[53px] rounded-[20px] bg-[#11121B] border-[#464558] border text-[#858585] hover:text-white hover:bg-[#464558]"
             >
               <Sliders className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4" />
@@ -824,6 +828,30 @@ export function LeaderboardTable() {
           }}
         >
           Copied to clipboard
+        </div>
+      )}
+
+      {/* Add the modal */}
+      {showWalletModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowWalletModal(false)}
+          />
+          
+          {/* Modal Content - Removed absolute positioning to center the button */}
+          <div className="relative z-50">
+            <Button
+              className="w-[184px] h-[47px] bg-[#AA00FF] hover:bg-[#AA00FF]/90 text-white rounded-[8px] px-[30px] py-[16px]"
+              onClick={() => {
+                // Add wallet connection logic here
+                setShowWalletModal(false);
+              }}
+            >
+              Connect Wallet
+            </Button>
+          </div>
         </div>
       )}
     </>

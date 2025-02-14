@@ -15,7 +15,7 @@ import traderData from '@/public/mock-data/leaderboard.json';
 type TimeInterval = "daily" | "weekly" | "monthly" | "all-time";
 
 function isTradeInTimeInterval(trade: Trader, timeInterval: TimeInterval) {
-  // Use a fixed date for testing (January 16, 2024)
+  // Keep the fixed date for testing
   const now = new Date('2024-01-16T12:00:00Z');
   const endDate = new Date(trade.last_trade);
 
