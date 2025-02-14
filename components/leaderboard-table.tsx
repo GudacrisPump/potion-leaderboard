@@ -313,7 +313,9 @@ export function LeaderboardTable() {
 
   // Handle interval button clicks
   const handleIntervalChange = (newInterval: typeof timeInterval) => {
-    setTraders([]); // Clear existing data
+    if (newInterval === timeInterval) {
+      return; // Don't do anything if clicking the same interval
+    }
     setTimeInterval(newInterval); // This will trigger the useEffect
   };
 
