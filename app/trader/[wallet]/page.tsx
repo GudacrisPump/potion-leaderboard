@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Share2, Sliders } from "lucide-react"
 import { StatsGrid } from "./stats-grid"
 import { Input } from "@/components/ui/input"
-import { ProfileTable } from "@/components/profile-table"
 import { useTraders } from "@/contexts/TraderContext";
 
 type TimeInterval = "daily" | "weekly" | "monthly" | "all-time";
@@ -16,16 +15,34 @@ type TimeInterval = "daily" | "weekly" | "monthly" | "all-time";
 export default function TraderProfile({ params }: { params: { wallet: string } }) {
   const { traders, loading } = useTraders();
   const [timeInterval, setTimeInterval] = useState<TimeInterval>("daily");
-  const trader = traders.find(t => t.wallet === params.wallet);
+  const trader = traders?.find(t => t.wallet === params.wallet);
   const defaultAvatar = "https://hebbkx1anhila5yf.public.blob.vercel-storage.com/avatar-placeholder-RU7CnlBGBrQYzHRc6PZqBPqFOlKEOK.png";
   const defaultName = "Anonymous Trader";
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen text-white">Loading...</div>;
+    return (
+      <div className="h-screen flex flex-col overflow-hidden bg-[#060611] text-white">
+        <Header />
+        <div className="flex-1 overflow-y-auto">
+          <main className="px-2 sm:px-4 md:px-6 lg:px-8 pt-6 sm:pt-8">
+            <div>Loading...</div>
+          </main>
+        </div>
+      </div>
+    );
   }
 
   if (!trader) {
-    return <div className="flex items-center justify-center min-h-screen text-white">Trader not found</div>;
+    return (
+      <div className="h-screen flex flex-col overflow-hidden bg-[#060611] text-white">
+        <Header />
+        <div className="flex-1 overflow-y-auto">
+          <main className="px-2 sm:px-4 md:px-6 lg:px-8 pt-6 sm:pt-8">
+            <div>Trader not found</div>
+          </main>
+        </div>
+      </div>
+    );
   }
 
   const truncateAddress = (address: string) => {
@@ -82,7 +99,6 @@ export default function TraderProfile({ params }: { params: { wallet: string } }
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-[#060611] text-white">
       <Header />
-
       <div className="flex-1 overflow-y-auto">
         <main className="px-2 sm:px-4 md:px-6 lg:px-8 pt-6 sm:pt-8">
           <div className="flex flex-col lg:flex-row gap-6 lg:gap-12">
@@ -210,72 +226,6 @@ export default function TraderProfile({ params }: { params: { wallet: string } }
               </div>
 
               <StatsGrid trader={filteredTrader} />
-            </div>
-          </div>
-
-          <div className="mt-8">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  className="h-8 px-4 rounded-full bg-[#25223d] text-white border-none hover:bg-[#464558]"
-                >
-                  Trades
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="h-8 px-4 rounded-full text-[#858585] hover:text-white hover:bg-[#464558]"
-                >
-                  Tokens
-                </Button>
-                <div className="relative group">
-                  <Button
-                    variant="ghost"
-                    className="h-8 px-4 rounded-full text-[#858585] hover:text-[#858585] hover:bg-transparent"
-                  >
-                    Groups
-                  </Button>
-                  <div className="absolute top-1/2 right-0 transform translate-y-[-50%] translate-x-[-10%] px-1.5 py-0.5 bg-[#25223d] text-white text-[10px] rounded-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
-                    coming soon...
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <Input
-                    type="search"
-                    placeholder="Search by token or contract address"
-                    className="w-[414px] h-[37px] bg-[#060611] border-[#464558] border rounded-[20px] text-white placeholder-[#858585] font-normal typography-button"
-                  />
-                  <svg
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-[#858585]"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
-                </div>
-                <Button
-                  variant="secondary"
-                  className="bg-[#23242c] text-white hover:bg-[#464558] h-[37px] px-3 rounded-[20px] border border-[#464558]"
-                >
-                  <Sliders className="w-4 h-4" />
-                  <div className="ml-2 bg-[#aa00ff] text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
-                    2
-                  </div>
-                </Button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <ProfileTable trader={trader} />
             </div>
           </div>
         </main>
