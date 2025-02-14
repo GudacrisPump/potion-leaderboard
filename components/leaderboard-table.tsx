@@ -147,6 +147,8 @@ export function LeaderboardTable() {
   const [timeInterval, setTimeInterval] = useState<"daily" | "weekly" | "monthly" | "all-time">("daily");
   const [allTraders, setAllTraders] = useState<Trader[]>([]);
   const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [selectedTrader, setSelectedTrader] = useState<Trader | null>(null);
 
   // Use ROI (return on investment) as our default sort key
   const [sortConfig, setSortConfig] = useState<SortConfig>({
@@ -435,6 +437,12 @@ export function LeaderboardTable() {
   // Update the filter button click handler
   const handleFilterClick = () => {
     setShowWalletModal(true);
+  };
+
+  // Add this handler
+  const handleShareClick = (trader: Trader) => {
+    setSelectedTrader(trader);
+    setShowShareModal(true);
   };
 
   return (
@@ -776,6 +784,7 @@ export function LeaderboardTable() {
                           <Button
                             variant="ghost"
                             size="icon"
+                            onClick={() => handleShareClick(trader)}
                             className="text-[#aa00ff] hover:text-[#aa00ff] hover:bg-[#aa00ff]/20"
                           >
                             <Share2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4" />
@@ -851,6 +860,29 @@ export function LeaderboardTable() {
             >
               Connect Wallet
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Add the modal */}
+      {showShareModal && selectedTrader && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowShareModal(false)}
+          />
+          
+          {/* Trading Card Image */}
+          <div className="relative z-50 w-[800px] rounded-[24px] overflow-hidden">
+            <Image
+              src="/potiontradestats.jpg"
+              alt="Trading Card Stats"
+              width={800}
+              height={533}
+              className="w-full h-auto"
+              priority
+            />
           </div>
         </div>
       )}
