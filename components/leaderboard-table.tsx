@@ -145,9 +145,10 @@ export function LeaderboardTable() {
   const [traders, setTraders] = useState<Trader[]>([]);
   const [uniqueTokenCounts, setUniqueTokenCounts] = useState<{ [key: string]: number }>({});
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
   const tradersPerPage = 20;
   const [timeInterval, setTimeInterval] = useState<"daily" | "weekly" | "monthly" | "all-time">("daily");
-  const [allTraders, setAllTraders] = useState<Trader[]>([]); // Store all traders data
+  const [allTraders, setAllTraders] = useState<Trader[]>([]);
 
   // Use ROI (return on investment) as our default sort key
   const [sortConfig, setSortConfig] = useState<SortConfig>({
@@ -224,10 +225,84 @@ export function LeaderboardTable() {
     try {
       const response = await fetch("/mock-data/leaderboard.json");
       const data: Trader[] = await response.json();
-      setAllTraders(data);
-      processTraders(data);
+
+      // First, group all trades by wallet
+      const walletGroups: { [key: string]: Trader[] } = {};
+      data.forEach((trade) => {
+        if (!walletGroups[trade.wallet]) {
+          walletGroups[trade.wallet] = [];
+        }
+        walletGroups[trade.wallet].push(trade);
+      });
+
+      // Filter and aggregate data for each wallet based on the time interval
+      const aggregatedTraders = Object.entries(walletGroups)
+        .map(([wallet, trades]) => {
+          // Filter trades for the current time interval
+          const filteredTrades = trades.filter(trade => 
+            isTradeInTimeInterval(trade.first_trade, trade.last_trade)
+          );
+
+          // If no trades in the current interval, return null
+          if (filteredTrades.length === 0) {
+            return null;
+          }
+
+          // Aggregate the filtered trades
+          const firstTrade = filteredTrades[0];
+          return {
+            id: wallet,
+            wallet: wallet,
+            token_name: "",
+            token_address: "",
+            first_trade: filteredTrades.reduce((earliest, trade) => 
+              trade.first_trade < earliest ? trade.first_trade : earliest,
+              filteredTrades[0].first_trade
+            ),
+            last_trade: filteredTrades.reduce((latest, trade) => 
+              trade.last_trade > latest ? trade.last_trade : latest,
+              filteredTrades[0].last_trade
+            ),
+            buys: filteredTrades.reduce((sum, trade) => sum + trade.buys, 0),
+            sells: filteredTrades.reduce((sum, trade) => sum + trade.sells, 0),
+            invested_sol: filteredTrades.reduce((sum, trade) => sum + trade.invested_sol, 0),
+            invested_sol_usd: filteredTrades.reduce((sum, trade) => sum + trade.invested_sol_usd, 0),
+            realized_pnl: filteredTrades.reduce((sum, trade) => sum + trade.realized_pnl, 0),
+            realized_pnl_usd: filteredTrades.reduce((sum, trade) => sum + trade.realized_pnl_usd, 0),
+            roi: filteredTrades.reduce((sum, trade) => sum + trade.roi, 0) / filteredTrades.length,
+            name: firstTrade.name,
+            avatar: firstTrade.avatar,
+            followers: firstTrade.followers,
+            avg_entry_usd: firstTrade.avg_entry_usd
+          };
+        })
+        .filter((trader): trader is Trader => trader !== null);
+
+      setTraders(aggregatedTraders);
+      setAllTraders(aggregatedTraders);
+      
+      // Calculate unique tokens per wallet for the filtered period
+      const tokenCounts: { [key: string]: Set<string> } = {};
+      data.forEach((trade) => {
+        if (isTradeInTimeInterval(trade.first_trade, trade.last_trade)) {
+          if (!tokenCounts[trade.wallet]) {
+            tokenCounts[trade.wallet] = new Set();
+          }
+          tokenCounts[trade.wallet].add(trade.token_address);
+        }
+      });
+
+      // Convert Sets to counts
+      const counts: { [key: string]: number } = {};
+      Object.entries(tokenCounts).forEach(([wallet, tokens]) => {
+        counts[wallet] = tokens.size;
+      });
+
+      setUniqueTokenCounts(counts);
     } catch (error) {
       console.error("Error fetching data:", error);
+    } finally {
+      
     }
   };
 
@@ -270,9 +345,21 @@ export function LeaderboardTable() {
     return diffInMinutes;
   };
 
-  // Sort traders based on the current sort configuration.
+  // Add search filter to sortedTraders
   const sortedTraders = useMemo(() => {
-    const sorted = [...traders].sort((a, b) => {
+    let filtered = [...traders];
+    
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(trader => 
+        trader.name?.toLowerCase().includes(query) || 
+        trader.wallet.toLowerCase().includes(query)
+      );
+    }
+
+    // Apply sorting
+    return filtered.sort((a, b) => {
       let aValue: number | string;
       let bValue: number | string;
       switch (sortConfig.key) {
@@ -326,7 +413,7 @@ export function LeaderboardTable() {
         : String(bValue).localeCompare(String(aValue));
     });
     return sorted;
-  }, [traders, sortConfig, uniqueTokenCounts]);
+  }, [traders, sortConfig, uniqueTokenCounts, searchQuery]);
 
   // Calculate pagination indices.
   const totalPages = Math.ceil(traders.length / tradersPerPage);
@@ -337,85 +424,15 @@ export function LeaderboardTable() {
   const nextPage = () => setCurrentPage((prev) => Math.min(prev + 1, totalPages));
   const prevPage = () => setCurrentPage((prev) => Math.max(prev - 1, 1));
 
+  // Update the search handler
+  const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(event.target.value);
+    setCurrentPage(1); // Reset to first page when searching
+  };
+
   // Default values for when manual data isn't available.
   const defaultAvatar = "/placeholder.svg?height=40&width=40";
   const defaultName = "RandomTrader";
-
-  // Process traders and calculate unique token counts
-  const processTraders = (data: Trader[]) => {
-    // First, group all trades by wallet
-    const walletGroups: { [key: string]: Trader[] } = {};
-    data.forEach((trade) => {
-      if (!walletGroups[trade.wallet]) {
-        walletGroups[trade.wallet] = [];
-      }
-      walletGroups[trade.wallet].push(trade);
-    });
-
-    // Filter and aggregate data for each wallet based on the time interval
-    const aggregatedTraders = Object.entries(walletGroups)
-      .map(([wallet, trades]) => {
-        // Filter trades for the current time interval
-        const filteredTrades = trades.filter(trade => 
-          isTradeInTimeInterval(trade.first_trade, trade.last_trade)
-        );
-
-        // If no trades in the current interval, return null
-        if (filteredTrades.length === 0) {
-          return null;
-        }
-
-        // Aggregate the filtered trades
-        const firstTrade = filteredTrades[0];
-        return {
-          id: wallet,
-          wallet: wallet,
-          token_name: "",
-          token_address: "",
-          first_trade: filteredTrades.reduce((earliest, trade) => 
-            trade.first_trade < earliest ? trade.first_trade : earliest,
-            filteredTrades[0].first_trade
-          ),
-          last_trade: filteredTrades.reduce((latest, trade) => 
-            trade.last_trade > latest ? trade.last_trade : latest,
-            filteredTrades[0].last_trade
-          ),
-          buys: filteredTrades.reduce((sum, trade) => sum + trade.buys, 0),
-          sells: filteredTrades.reduce((sum, trade) => sum + trade.sells, 0),
-          invested_sol: filteredTrades.reduce((sum, trade) => sum + trade.invested_sol, 0),
-          invested_sol_usd: filteredTrades.reduce((sum, trade) => sum + trade.invested_sol_usd, 0),
-          realized_pnl: filteredTrades.reduce((sum, trade) => sum + trade.realized_pnl, 0),
-          realized_pnl_usd: filteredTrades.reduce((sum, trade) => sum + trade.realized_pnl_usd, 0),
-          roi: filteredTrades.reduce((sum, trade) => sum + trade.roi, 0) / filteredTrades.length,
-          name: firstTrade.name,
-          avatar: firstTrade.avatar,
-          followers: firstTrade.followers,
-          avg_entry_usd: firstTrade.avg_entry_usd
-        };
-      })
-      .filter((trader): trader is Trader => trader !== null);
-
-    setTraders(aggregatedTraders);
-    
-    // Calculate unique tokens per wallet for the filtered period
-    const tokenCounts: { [key: string]: Set<string> } = {};
-    data.forEach((trade) => {
-      if (isTradeInTimeInterval(trade.first_trade, trade.last_trade)) {
-        if (!tokenCounts[trade.wallet]) {
-          tokenCounts[trade.wallet] = new Set();
-        }
-        tokenCounts[trade.wallet].add(trade.token_address);
-      }
-    });
-
-    // Convert Sets to counts
-    const counts: { [key: string]: number } = {};
-    Object.entries(tokenCounts).forEach(([wallet, tokens]) => {
-      counts[wallet] = tokens.size;
-    });
-
-    setUniqueTokenCounts(counts);
-  };
 
   return (
     <>
@@ -469,6 +486,8 @@ export function LeaderboardTable() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4 text-[#858585]" />
               <Input
                 type="text"
+                value={searchQuery}
+                onChange={handleSearch}
                 placeholder="Search by name or wallet"
                 className="h-[37px] w-full xl:w-[414px] bg-[#060611] border-[#464558] border text-white placeholder:text-[#858585] text-[10px] sm:text-xs md:text-sm font-extralight rounded-[20px] pl-9 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-[#464558]"
               />
@@ -660,9 +679,7 @@ export function LeaderboardTable() {
                               </span>
                             </div>
                           </Link>
-                        ) : (
-                          <span>-</span>
-                        )}
+                        ) : null}
                       </TableCell>
                       {/* Followers */}
                       <TableCell className="w-[100px] sm:w-[125px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3">
