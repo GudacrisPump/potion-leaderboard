@@ -10,8 +10,38 @@ import { StatsGrid } from "./stats-grid"
 import { Input } from "@/components/ui/input"
 import { useTraders } from "@/contexts/TraderContext";
 import { TraderTable } from "./trader-table"
+import traderData from '@/public/mock-data/leaderboard.json';
 
 type TimeInterval = "daily" | "weekly" | "monthly" | "all-time";
+
+function isTradeInTimeInterval(trade: Trader, timeInterval: TimeInterval) {
+  // Use a fixed date for testing (January 16, 2024)
+  const now = new Date('2024-01-16T12:00:00Z');
+  const endDate = new Date(trade.last_trade);
+
+  switch (timeInterval) {
+    case "daily":
+      const today = now.toISOString().split('T')[0];
+      const tradeDate = endDate.toISOString().split('T')[0];
+      return today === tradeDate;
+      
+    case "weekly":
+      const weekAgo = new Date(now);
+      weekAgo.setDate(now.getDate() - 7);
+      return endDate >= weekAgo;
+      
+    case "monthly":
+      const monthAgo = new Date(now);
+      monthAgo.setDate(now.getDate() - 30);
+      return endDate >= monthAgo;
+      
+    case "all-time":
+      return true;
+      
+    default:
+      return false;
+  }
+}
 
 export default function TraderProfile({ params }: { params: { wallet: string } }) {
   const { traders, loading } = useTraders();
@@ -53,49 +83,14 @@ export default function TraderProfile({ params }: { params: { wallet: string } }
     return `${start}...${end}`;
   };
 
-  const getFilteredData = (trader: any, interval: TimeInterval) => {
-    const now = new Date();
-    const traderData = { ...trader }; // Create a copy to modify
+  // Filter trades for this wallet and time interval
+  const traderTrades = traderData.filter(trade => 
+    trade.wallet === params.wallet &&
+    isTradeInTimeInterval(trade, timeInterval)
+  );
 
-    switch (interval) {
-      case "daily":
-        const oneDayAgo = new Date(now.setDate(now.getDate() - 1));
-        // Filter trades within last 24 hours
-        return filterTraderDataByDate(traderData, oneDayAgo);
-      
-      case "weekly":
-        const oneWeekAgo = new Date(now.setDate(now.getDate() - 7));
-        return filterTraderDataByDate(traderData, oneWeekAgo);
-      
-      case "monthly":
-        const oneMonthAgo = new Date(now.setMonth(now.getMonth() - 1));
-        return filterTraderDataByDate(traderData, oneMonthAgo);
-      
-      case "all-time":
-      default:
-        return traderData;
-    }
-  };
-
-  const filterTraderDataByDate = (trader: any, startDate: Date) => {
-    const lastTradeDate = new Date(trader.last_trade);
-    if (lastTradeDate < startDate) {
-      // No trades in this period
-      return {
-        ...trader,
-        buys: 0,
-        sells: 0,
-        invested_sol: 0,
-        invested_sol_usd: 0,
-        realized_pnl: 0,
-        realized_pnl_usd: 0,
-        roi: 0
-      };
-    }
-    return trader;
-  };
-
-  const filteredTrader = trader ? getFilteredData(trader, timeInterval) : null;
+  // Get the most recent trade for the stats grid
+  const mostRecentTrade = traderTrades.length > 0 ? traderTrades[0] : null;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-[#060611] text-white">
@@ -226,16 +221,12 @@ export default function TraderProfile({ params }: { params: { wallet: string } }
                 </div>
               </div>
 
-              <StatsGrid trader={filteredTrader} />
+              {mostRecentTrade && <StatsGrid trader={mostRecentTrade} timeInterval={timeInterval} />}
             </div>
           </div>
 
-          {console.log('Filtered Trader Data:', filteredTrader)}
-          
           <div className="mt-8 min-h-[200px]">
-            {filteredTrader && (
-              <TraderTable trader={filteredTrader} />
-            )}
+            <TraderTable trades={traderTrades} timeInterval={timeInterval} />
           </div>
         </main>
       </div>

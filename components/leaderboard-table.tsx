@@ -655,7 +655,10 @@ export function LeaderboardTable() {
                       {/* Trader */}
                       <TableCell className="w-[160px] sm:w-[200px] text-left whitespace-nowrap p-1 sm:p-2 md:p-3">
                         {trader ? (
-                          <Link href={`/trader/${trader.wallet}`} className="flex items-center gap-2">
+                          <Link 
+                            href={`/trader/${trader.wallet}?interval=${timeInterval}`} 
+                            className="flex items-center gap-2"
+                          >
                             <Avatar className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10">
                               <AvatarImage
                                 src={trader.avatar || defaultAvatar}

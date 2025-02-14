@@ -13,9 +13,10 @@ interface StatsGridProps {
     first_trade: string;
     last_trade: string;
   };
+  timeInterval?: TimeInterval;
 }
 
-export function StatsGrid({ trader }: StatsGridProps) {
+export function StatsGrid({ trader, timeInterval = "all-time" }: StatsGridProps) {
   const calculateWinRate = (trader: { buys: number; sells: number }) => {
     const totalTrades = trader.buys + trader.sells;
     return totalTrades > 0 ? (trader.buys / totalTrades) * 100 : 0;
