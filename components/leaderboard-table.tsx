@@ -708,11 +708,11 @@ export function LeaderboardTable() {
                       </TableCell>
                       {/* Win Rate */}
                       <TableCell className="w-[80px] sm:w-[90px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3">
-                        {trader ? `${calculateWinRate(trader).toFixed(1)}%` : <span>-</span>}
+                        {trader ? `${Math.round(calculateWinRate(trader))}%` : <span>-</span>}
                       </TableCell>
                       {/* ROI */}
                       <TableCell className="w-[80px] sm:w-[90px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3">
-                        {trader ? `${trader.roi}%` : <span>-</span>}
+                        {trader ? `${Math.round(trader.roi)}%` : <span>-</span>}
                       </TableCell>
                       {/* Trades */}
                       <TableCell className="w-[80px] sm:w-[100px] text-right whitespace-nowrap pr-4 p-1 sm:p-2 md:p-3">
