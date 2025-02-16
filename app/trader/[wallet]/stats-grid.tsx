@@ -38,6 +38,10 @@ export function StatsGrid({ trader, timeInterval = "all-time" }: StatsGridProps)
     return Math.round(amount).toString();                  // 100+
   };
 
+  // Calculate total realized PNL
+  const totalRealizedPNL = trader.realized_pnl;
+  const totalRealizedPNLUSD = trader.realized_pnl_usd;
+
   return (
     <div className="grid grid-cols-3">
       {/* First row */}
@@ -147,7 +151,7 @@ export function StatsGrid({ trader, timeInterval = "all-time" }: StatsGridProps)
       </div>
 
       {/* Trades */}
-      <div className="bg-[#11121B] p-2 sm:p-3 md:p-4 h-[60px] sm:h-[66px] md:h-[72px] border-r border-b border-[#23242C]">
+      <div className="bg-[#11121B] p-2 sm:p-3 md:p-4 h-[60px] sm:h-[66px] md:h-[72px] border-r border-[#23242C]">
         <div className="flex flex-col justify-center h-full w-full">
           <div className="flex justify-between items-center w-full">
             <div className="text-[10px] sm:text-[12px] md:text-[14px] font-normal text-white">Trades</div>
@@ -180,16 +184,16 @@ export function StatsGrid({ trader, timeInterval = "all-time" }: StatsGridProps)
       </div>
 
       {/* Realized PNL */}
-      <div className="bg-[#11121B] p-2 sm:p-3 md:p-4 h-[60px] sm:h-[66px] md:h-[72px] border-[#23242C]">
+      <div className="bg-[#11121B] p-2 sm:p-3 md:p-4 h-[60px] sm:h-[66px] md:h-[72px]">
         <div className="flex flex-col justify-center h-full w-full">
           <div className="flex justify-between items-center w-full">
             <div className="text-[10px] sm:text-[12px] md:text-[14px] font-normal text-white">Realized PNL</div>
             <div className="text-right">
-              <div className={`text-[10px] sm:text-[12px] md:text-[14px] font-extralight ${trader.realized_pnl >= 0 ? 'text-[#59cc6c]' : 'text-[#CC5959]'}`}>
-                {trader.realized_pnl >= 0 ? '' : '-'}{formatSolAmount(Math.abs(trader.realized_pnl))} SOL
+              <div className={`text-[10px] sm:text-[12px] md:text-[14px] font-extralight ${totalRealizedPNL >= 0 ? 'text-[#59cc6c]' : 'text-[#CC5959]'}`}>
+                {totalRealizedPNL >= 0 ? '+' : '-'}{formatSolAmount(Math.abs(totalRealizedPNL))} SOL
               </div>
               <div className="text-[8px] sm:text-[10px] md:text-[12px] text-[#858585]">
-                ${trader.realized_pnl_usd.toLocaleString()}
+                {totalRealizedPNLUSD >= 0 ? '+' : '-'}${Math.abs(totalRealizedPNLUSD).toLocaleString()}
               </div>
             </div>
           </div>
