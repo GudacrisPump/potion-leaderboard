@@ -8,8 +8,8 @@ How to run the project
 
 ### 1. Clone the repository
 ```sh
-git clone https://github.com/your-repo/your-nextjs-project.git
-cd your-nextjs-project
+git clone https://github.com/GudacrisPump/potion-leaderboard
+cd potion-leaderboard
 ```
 
 ### 2. Install dependencies
